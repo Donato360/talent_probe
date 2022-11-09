@@ -9,11 +9,16 @@ from  bs4 import BeautifulSoup
 from webdriver_manager.chrome import ChromeDriverManager
 from selenium.webdriver.common.by import By
 from selenium.webdriver.common.keys import Keys
+from parsel import Selector
 import numpy as np
 import pandas as pd
 import json
+import argparse
+import sys
 
 SCROLL_PAUSE_TIME = 5
+
+driver = webdriver.Chrome(ChromeDriverManager().install())
 
 def getUniqueItems(iterable):
     seen = set()
@@ -24,16 +29,17 @@ def getUniqueItems(iterable):
             result.append(item)
     return result
 
-driver = webdriver.Chrome(ChromeDriverManager().install())
-
 # Login
 def login():
+    driver.maximize_window()
+    time.sleep(0.1)
+
     # login = open the file 'parameters.py' and edit your login details. This is your linkedin account login, store in a seperate text file. I recommend creating a fake account so your real one doesn't get flagged or banned
     email = parameters.username
     password = parameters.password
 
     driver.get("https://www.linkedin.com/login")
-    time.sleep(1)
+    time.sleep(0.2)
 
     eml = driver.find_element(by=By.ID, value="username")
     eml.send_keys(email)
@@ -41,18 +47,35 @@ def login():
     passwd.send_keys(password)
     loginbutton = driver.find_element(by=By.XPATH, value="//*[@id=\"organic-div\"]/form/div[3]/button")
     loginbutton.click()
-    time.sleep(3)
+    time.sleep(0.2)
 
 
 # Return profiles urls. User can upload profiles URLs from a linkedIn query, a python file or a csv file
 def getProfileURLs(source):
-    if source == 'query':
+    if source[0] == 'query':
+        driver.get('https://www.google.com/')
+
+        accept_google_cookies_button = driver.find_element(By.XPATH, '//button/div[contains(text(), "Accept all")]')
+        accept_google_cookies_button.click()
+        sleep(0.2)
+
+        google_search_input = driver.find_element(By.XPATH, '//input[@name="q"]')
+        google_search_input.send_keys(source[1])
+        google_search_input.send_keys(Keys.RETURN)
+        sleep(0.2)
+
+        linkedin_profiles = driver.find_elements(By.XPATH, '//div/a[contains(@href,"linkedin.com/in/")]')
+        linkedin_profiles = [profile.get_attribute('href') for profile in linkedin_profiles]
+        return linkedin_profiles
+
+    if source[0] == 'file':
+        print(source[0])
+        print(source[1])
         pass
 
-    if source == 'file':
-        pass
-
-    if source == 'csv':
+    if source[0] == 'csv':
+        print(source[0])
+        print(source[1])
         pass
     
 # parses a type 2 job row
@@ -90,53 +113,71 @@ def parseType1Job(alltext):
     return ('type1job', jobtitle, company, duration)
 
 # returns linkedin profile information
-def returnProfileInfo(employeeLink, companyName):
+def returnProfileInfo(employeeLink):
     url = employeeLink
     driver.get(url)
-    time.sleep(2)
+    time.sleep(0.2)
     source = BeautifulSoup(driver.page_source, "html.parser")
 
-    profile = []
-    profile.append(companyName)
-    info = source.find('div', class_='mt2 relative')
-    name = info.find('h1', class_='text-heading-xlarge inline t-24 v-align-middle break-words').get_text().strip()
-    title = info.find('div', class_='text-body-medium break-words').get_text().lstrip().strip()
-    profile.append(name)
-    profile.append(title)
-    time.sleep(1)
+    profile_dictionary = {}
+
+    try:
+        name_info = source.find('div', class_='mt2 relative')
+        name = name_info.find('h1', class_='text-heading-xlarge inline t-24 v-align-middle break-words').get_text().strip()
+    except:
+        name = None
+
+    profile_dictionary['full_name'] = name
+
+    try:
+        title = name_info.find('div', class_='text-body-medium break-words').get_text().lstrip().strip()
+    except:
+        title = None
+
+    profile_dictionary['job_title'] = title
+
+    try:
+        location = name_info.find('span' , {'class': 'text-body-small inline t-black--light break-words'}).get_text().strip()
+    except:
+        location = None
+
+    profile_dictionary['location_name'] = location
+    
+    time.sleep(0.1)
     experiences = source.find_all('li', class_='artdeco-list__item pvs-list__item--line-separated pvs-list__item--one-column')
 
-    for x in experiences[1:]:
-        alltext = x.getText().split('\n')
-        print(alltext)
-        startIdentifier = 0
-        for e in alltext:
-            if e == '' or e == ' ':
-                startIdentifier+=1
-            else:
-                break
-        # jobs, educations, certifications
-        if startIdentifier == 16:
-            # education
-            if 'university' in alltext[16].lower().split(' ') or 'college' in alltext[16].lower().split(' ') or 'ba' in alltext[16].lower().split(' ') or 'bs' in alltext[16].lower().split(' '):
-                profile.append(('education', alltext[16][:len(alltext[16])//2], alltext[20][:len(alltext[20])//2]))
+    # for x in experiences[1:]:
+    #     alltext = x.getText().split('\n')
+    #     print(alltext)
+    #     startIdentifier = 0
+    #     for e in alltext:
+    #         if e == '' or e == ' ':
+    #             startIdentifier+=1
+    #         else:
+    #             break
+    #     # jobs, educations, certifications
+    #     if startIdentifier == 16:
+    #         # education
+    #         if 'university' in alltext[16].lower().split(' ') or 'college' in alltext[16].lower().split(' ') or 'ba' in alltext[16].lower().split(' ') or 'bs' in alltext[16].lower().split(' '):
+    #             profile.append(('education', alltext[16][:len(alltext[16])//2], alltext[20][:len(alltext[20])//2]))
 
-            # certifications
-            elif 'issued' in alltext[23].lower().split(' '):
-                profile.append(('certification', alltext[16][:len(alltext[16])//2], alltext[20][:len(alltext[20])//2]))
+    #         # certifications
+    #         elif 'issued' in alltext[23].lower().split(' '):
+    #             profile.append(('certification', alltext[16][:len(alltext[16])//2], alltext[20][:len(alltext[20])//2]))
 
-        elif startIdentifier == 12:
-            # Skills
-            if (alltext[16] == '' or alltext[16] == ' ') and len(alltext) > 24:
-                profile.append(('skill', alltext[12][:len(alltext[12])//2]))
+    #     elif startIdentifier == 12:
+    #         # Skills
+    #         if (alltext[16] == '' or alltext[16] == ' ') and len(alltext) > 24:
+    #             profile.append(('skill', alltext[12][:len(alltext[12])//2]))
 
     # experiences
     url = driver.current_url + '/details/experience/'
     driver.get(url)
-    time.sleep(2)
+    time.sleep(0.2)
     source = BeautifulSoup(driver.page_source, "html.parser")
-    time.sleep(1)
+    time.sleep(0.1)
     exp = source.find_all('li')
+    print(exp)
     for e in exp[13:]:
         row = e.getText().split('\n')
         if row[:16] == ['', '', '', '', '', '', ' ', '', '', '', '', '', '', '', '', '']:
@@ -145,21 +186,36 @@ def returnProfileInfo(employeeLink, companyName):
             else:
                 profile.append(parseType1Job(row))
 
-    return profile
+    return profile_dictionary
 
 if __name__ == "__main__":
-    companies = ['apple'] #, 'microsoft', 'amazon', 'tesla-motors', 'google', 'nvidia', 'berkshire-hathaway', 'meta', 'unitedhealth-group'
+    # Instantiate the parser
+    parser = argparse.ArgumentParser(description='Optional app description')
+
+    # Required positional argument
+    parser.add_argument('--source', type=str, nargs=2, metavar=('[type]', '[query string, python file name or csv file name]'),
+                     required=True, help='type of linkedIn profiles to process can be : "query", "file" or "csv"')
+
+    args = parser.parse_args()
+
     login()
-    employees_profiles = {'https://www.linkedin.com/in/ykpgrr/', 'https://www.linkedin.com/in/lee-braybrooke-73666927/', 'https://www.linkedin.com/in/saman-nejad/', 'https://www.linkedin.com/in/eluert-mukja/', 'https://www.linkedin.com/in/sir-hossein-yassaie-freng-fiet-55685012/'}
-    employees = {}
+
+    linkedin_profiles = []
+    
+    # linkedin_profiles = getProfileURLs(args.source)
+    # linkedin_profiles = linkedin_profiles + ['https://www.linkedin.com/in/ykpgrr/', 'https://www.linkedin.com/in/lee-braybrooke-73666927/', 'https://www.linkedin.com/in/saman-nejad/', 'https://www.linkedin.com/in/eluert-mukja/', 'https://www.linkedin.com/in/sir-hossein-yassaie-freng-fiet-55685012/']
+
+    linkedin_profiles = ['https://www.linkedin.com/in/sir-hossein-yassaie-freng-fiet-55685012/']
+    
+    print(linkedin_profiles)
+    
+    profiles = []
     x = 1
-    for company in companies:
-        # searchable = getProfileURLs(company)
-        # for employee in searchable[0]:
-        for employee in employees_profiles:
-            employees[employee] = returnProfileInfo(employee, company)
+    
+    for profile in linkedin_profiles:
+        profiles.append(returnProfileInfo(profile))
 
     with open('m&a.json', 'w') as f:
-        json.dump(employees, f)
+        json.dump(profiles, f)
     time.sleep(10)
     driver.quit()
