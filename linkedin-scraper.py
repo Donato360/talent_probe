@@ -203,18 +203,55 @@ def returnProfileInfo(employeeLink):
             break
         last_height = new_height
 
-    source = BeautifulSoup(driver.page_source, 'lxml')
-    time.sleep(0.1)
-    exp = source.find_all('li', {"class": "pvs-list__paged-list-item artdeco-list__item pvs-list__item--line-separated"})
+    source = BeautifulSoup(driver.page_source, "html.parser")
+    time.sleep(1)
+    exp = source.find_all('li')
+    experience_list = []
 
-    for e in exp:
+    for e in exp[13:]:
         row = e.getText().split('\n')
-
         if row[:16] == ['', '', '', '', '', '', ' ', '', '', '', '', '', '', '', '', '']:
-            if 'yrs' in row[25].split(' '):
-                profile.append(parseType2Jobs(row))
+            if 'yrs' in row[20].split(' '):
+                experience_list.append(parseType2Jobs(row))
             else:
-                profile.append(parseType1Job(row))
+                experience_list.append(parseType1Job(row))
+
+    # # experiences
+    # url = driver.current_url + '/details/experience/'
+    # driver.get(url)
+    # time.sleep(0.2)
+
+    # # Get scroll height
+    # last_height = driver.execute_script("return document.body.scrollHeight")
+
+    # while True:
+    #     # Scroll down to bottom
+    #     driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
+
+    #     # Wait to load page
+    #     time.sleep(SCROLL_PAUSE_TIME)
+
+    #     # Calculate new scroll height and compare with last scroll height
+    #     new_height = driver.execute_script("return document.body.scrollHeight")
+    #     if new_height == last_height:
+    #         break
+    #     last_height = new_height
+
+    # source = BeautifulSoup(driver.page_source, 'lxml')
+    # time.sleep(0.1)
+    # exp = source.find_all('li', {"class": "pvs-list__paged-list-item artdeco-list__item pvs-list__item--line-separated"})
+    # experience_list = []
+
+    # for e in exp:
+    #     row = e.getText().split('\n')
+
+    #     if row[:16] == ['', '', '', '', '', '', ' ', '', '', '', '', '', '', '', '', '']:
+    #         if 'yrs' in row[25].split(' '):
+    #             experience_list.append(parseType2Jobs(row))
+    #         else:
+    #             experience_list.append(parseType1Job(row))
+
+    profile_dictionary['experience'] = experience_list
 
     return profile_dictionary
 
@@ -233,6 +270,8 @@ if __name__ == "__main__":
     linkedin_profiles = []
     
     linkedin_profiles = getProfileURLs(args.source)
+    linkedin_profiles = linkedin_profiles + ['https://www.linkedin.com/in/sir-hossein-yassaie-freng-fiet-55685012/']
+
     # linkedin_profiles = linkedin_profiles + ['https://www.linkedin.com/in/ykpgrr/', 'https://www.linkedin.com/in/lee-braybrooke-73666927/', 'https://www.linkedin.com/in/saman-nejad/', 'https://www.linkedin.com/in/eluert-mukja/', 'https://www.linkedin.com/in/sir-hossein-yassaie-freng-fiet-55685012/']
 
     # linkedin_profiles = ['https://www.linkedin.com/in/sir-hossein-yassaie-freng-fiet-55685012/']
