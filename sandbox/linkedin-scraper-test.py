@@ -11,7 +11,7 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.common.keys import Keys
 import numpy as np
 
-SCROLL_PAUSE_TIME = 5
+SCROLL_PAUSE_TIME = 1
 
 def getUniqueItems(iterable):
     seen = set()
