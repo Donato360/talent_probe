@@ -10,6 +10,7 @@ from webdriver_manager.chrome import ChromeDriverManager
 from selenium.webdriver.common.by import By
 from selenium.webdriver.common.keys import Keys
 from parsel import Selector
+from datetime import datetime
 import numpy as np
 import pandas as pd
 import json
@@ -284,7 +285,12 @@ if __name__ == "__main__":
     for profile in linkedin_profiles:
         profiles.append(returnProfileInfo(profile))
 
-    with open('m&a.json', 'w') as f:
+    now = datetime.now() # current date and time
+
+    date_time = now.strftime("_%m_%d_%Y-%H_%M_%S")
+    file_name = 'linkedInProfiles' + date_time + '.json'
+
+    with open(file_name, 'w') as f:
         json.dump(profiles, f)
     time.sleep(10)
     driver.quit()
