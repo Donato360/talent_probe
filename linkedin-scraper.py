@@ -4,6 +4,7 @@ import re
 import parameters
 import time
 from time import sleep
+from datetime import datetime
 from selenium import webdriver
 from  bs4 import BeautifulSoup
 from webdriver_manager.chrome import ChromeDriverManager
@@ -20,6 +21,9 @@ import sys
 SCROLL_PAUSE_TIME = 1
 
 driver = webdriver.Chrome(ChromeDriverManager().install())
+
+def average(list):
+    return sum(list) / len(list)
 
 def getUniqueItems(iterable):
     seen = set()
@@ -40,7 +44,7 @@ def login():
     password = parameters.password
 
     driver.get("https://www.linkedin.com/login")
-    time.sleep(0.2)
+    driver.implicitly_wait(3)
 
     eml = driver.find_element(by=By.ID, value="username")
     eml.send_keys(email)
@@ -209,51 +213,200 @@ def returnProfileInfo(employeeLink):
     exp = source.find_all('li')
     experience_list = []
 
-    for e in exp[13:]:
-        row = e.getText().split('\n')
-        if row[:16] == ['', '', '', '', '', '', ' ', '', '', '', '', '', '', '', '', '']:
-            if 'yrs' in row[20].split(' '):
-                experience_list.append(parseType2Jobs(row))
-            else:
-                experience_list.append(parseType1Job(row))
-
-    # # experiences
-    # url = driver.current_url + '/details/experience/'
-    # driver.get(url)
-    # time.sleep(0.2)
-
-    # # Get scroll height
-    # last_height = driver.execute_script("return document.body.scrollHeight")
-
-    # while True:
-    #     # Scroll down to bottom
-    #     driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
-
-    #     # Wait to load page
-    #     time.sleep(SCROLL_PAUSE_TIME)
-
-    #     # Calculate new scroll height and compare with last scroll height
-    #     new_height = driver.execute_script("return document.body.scrollHeight")
-    #     if new_height == last_height:
-    #         break
-    #     last_height = new_height
-
-    # source = BeautifulSoup(driver.page_source, 'lxml')
-    # time.sleep(0.1)
-    # exp = source.find_all('li', {"class": "pvs-list__paged-list-item artdeco-list__item pvs-list__item--line-separated"})
-    # experience_list = []
-
-    # for e in exp:
+    # for e in exp[13:]:
     #     row = e.getText().split('\n')
-
     #     if row[:16] == ['', '', '', '', '', '', ' ', '', '', '', '', '', '', '', '', '']:
-    #         if 'yrs' in row[25].split(' '):
+    #         if 'yrs' in row[20].split(' '):
     #             experience_list.append(parseType2Jobs(row))
     #         else:
     #             experience_list.append(parseType1Job(row))
 
+    # experiences
+    url = driver.current_url + '/details/experience/'
+    driver.get(url)
+    time.sleep(0.2)
+
+    # Get scroll height
+    last_height = driver.execute_script("return document.body.scrollHeight")
+
+    while True:
+        # Scroll down to bottom
+        driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
+
+        # Wait to load page
+        time.sleep(SCROLL_PAUSE_TIME)
+
+        # Calculate new scroll height and compare with last scroll height
+        new_height = driver.execute_script("return document.body.scrollHeight")
+        if new_height == last_height:
+            break
+        last_height = new_height
+
+    source = BeautifulSoup(driver.page_source, 'lxml')
+    time.sleep(0.1)
+    exp = source.find_all('li', {"class": "pvs-list__paged-list-item artdeco-list__item pvs-list__item--line-separated"})
+    experience_list = []
+
+    for e in exp:
+        row = e.getText().split('\n')
+
+        if row[:16] == ['', '', '', '', '', '', ' ', '', '', '', '', '', '', '', '', '']:
+            if 'yrs' in row[25].split(' '):
+                experience_list.append(parseType2Jobs(row))
+            else:
+                experience_list.append(parseType1Job(row))
+
     profile_dictionary['experience'] = experience_list
 
+    return profile_dictionary
+
+def extract_education(current_username):
+    # education details
+    current_profile_url = 'https://www.linkedin.com/in/' + current_username + '/details/education/'
+
+    print(current_profile_url)
+    driver.get(current_profile_url)
+
+    # Get scroll height
+    last_height = driver.execute_script("return document.body.scrollHeight")
+
+    while True:
+        # Scroll down to bottom
+        driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
+
+        # Wait to load page
+        time.sleep(SCROLL_PAUSE_TIME)
+
+        # Calculate new scroll height and compare with last scroll height
+        new_height = driver.execute_script("return document.body.scrollHeight")
+        if new_height == last_height:
+            break
+        last_height = new_height
+
+    education_list = []
+    source = BeautifulSoup(driver.page_source, "html.parser")
+
+    educations = source.find_all('li', {"class": "pvs-list__paged-list-item artdeco-list__item pvs-list__item--line-separated"})
+
+    for education in educations:
+        alltext = education.getText().split('\n')
+        alltext = list(filter(None, alltext))
+        print(alltext)
+
+        startIdentifier = 0
+        for e in alltext:
+            if e == '' or e == ' ':
+                startIdentifier+=1
+            else:
+                break
+
+        # print(startIdentifier)
+        # print(alltext[startIdentifier])
+        # print(alltext[startIdentifier + 1])
+        # print(alltext[startIdentifier + 2])
+
+        education_list.append(('education', alltext[startIdentifier][:len(alltext[startIdentifier])//2], alltext[startIdentifier+4][:len(alltext[startIdentifier+4])//2]))
+
+    
+    return education_list
+
+# returns linkedin profile information
+def returnProfileInfo_new(employeeLink):
+    url = employeeLink
+    driver.get(url)
+    time.sleep(0.2)
+    source = BeautifulSoup(driver.page_source, "html.parser")
+
+    profile_dictionary = {}
+
+    try:
+        name_info = source.find('div', class_='mt2 relative')
+        name = name_info.find('h1', class_='text-heading-xlarge inline t-24 v-align-middle break-words').get_text().strip()
+    except:
+        name = None
+
+    profile_dictionary['full_name'] = name
+
+    try:
+        forename = name.rsplit(' ', 1)[0]
+    except:
+        forename = None
+
+    profile_dictionary['first_name'] = forename
+
+    try:
+        name_components = name.split()
+        surname = name_components[-1]
+    except:
+        surname = None
+
+    profile_dictionary['last_name'] = surname
+
+    try:
+        picture = source.find('img', class_='pv-top-card-profile-picture__image pv-top-card-profile-picture__image--show ember-view')
+        avatar = picture['src']
+    except:
+        avatar = None
+
+    profile_dictionary['avatar'] = avatar
+
+    try:
+        linkedin_url = profile
+    except:
+        linkedin_url = None
+
+    profile_dictionary['linkedin_url'] = linkedin_url
+
+    try:
+        linkedin_username = profile.rstrip('/')
+        linkedin_username = linkedin_username.rsplit('/', 1)[-1]
+    except:
+        linkedin_username = None
+
+    profile_dictionary['linkedin_username'] = linkedin_username
+
+    try:
+        title = name_info.find('div', class_='text-body-medium break-words').get_text().lstrip().strip()
+    except:
+        title = None
+
+    profile_dictionary['job_title'] = title
+
+    try:
+        location = name_info.find('span' , {'class': 'text-body-small inline t-black--light break-words'}).get_text().strip()
+    except:
+        location = None
+
+    profile_dictionary['location_name'] = location
+
+    try:
+        about_section = source.find("div", {"id": "about"}).find_parent('section')
+        summary = about_section.find_all('span' , {'class': 'visually-hidden'})[1].get_text().strip()
+    except:
+        summary = 'data not found'
+
+    profile_dictionary['summary'] = summary
+    
+    time.sleep(0.1)
+
+    certification_list = []
+    education_list = []
+    skill_list = []
+
+    profile_dictionary['education'] = extract_education(linkedin_username)
+
+    print('*********************************************************')
+    print('')
+
+    if education_list:
+        profile_dictionary['education'] = education_list
+
+    if certification_list:
+        profile_dictionary['certification'] = certification_list
+
+    if skill_list:
+        profile_dictionary['skills'] = skill_list
+    
     return profile_dictionary
 
 if __name__ == "__main__":
@@ -270,8 +423,8 @@ if __name__ == "__main__":
 
     linkedin_profiles = []
     
-    linkedin_profiles = getProfileURLs(args.source)
-    linkedin_profiles = linkedin_profiles + ['https://www.linkedin.com/in/sir-hossein-yassaie-freng-fiet-55685012/']
+    # linkedin_profiles = getProfileURLs(args.source)
+    linkedin_profiles = linkedin_profiles + ['https://uk.linkedin.com/in/kim-trefeil', 'https://www.linkedin.com/in/sir-hossein-yassaie-freng-fiet-55685012/', 'https://www.linkedin.com/in/kopanias/', 'https://www.linkedin.com/in/ykpgrr/']
 
     # linkedin_profiles = linkedin_profiles + ['https://www.linkedin.com/in/ykpgrr/', 'https://www.linkedin.com/in/lee-braybrooke-73666927/', 'https://www.linkedin.com/in/saman-nejad/', 'https://www.linkedin.com/in/eluert-mukja/', 'https://www.linkedin.com/in/sir-hossein-yassaie-freng-fiet-55685012/']
 
@@ -281,9 +434,21 @@ if __name__ == "__main__":
     
     profiles = []
     x = 1
+
+    current_profile_execution_time = 0
+    profiles_execution_times = []
     
     for profile in linkedin_profiles:
-        profiles.append(returnProfileInfo(profile))
+        start = time.time()
+        profiles.append(returnProfileInfo_new(profile))
+
+        end = time.time()
+
+        current_profile_execution_time = (end-start) * 10**3
+        profiles_execution_times.append(current_profile_execution_time)
+
+    average_execution_time = average(profiles_execution_times)
+    print("The average time of execution for a profile:", average_execution_time, "ms")
 
     now = datetime.now() # current date and time
 
