@@ -8,6 +8,7 @@ from datetime import datetime
 from selenium import webdriver
 from  bs4 import BeautifulSoup
 from webdriver_manager.chrome import ChromeDriverManager
+from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.common.by import By
 from selenium.webdriver.common.keys import Keys
 from parsel import Selector
@@ -20,7 +21,9 @@ import sys
 
 SCROLL_PAUSE_TIME = 1
 
-driver = webdriver.Chrome(ChromeDriverManager().install())
+options = Options()
+options.add_argument("--headless")
+driver = webdriver.Chrome(ChromeDriverManager().install(), chrome_options=options)
 
 def average(list):
     return sum(list) / len(list)
