@@ -1,28 +1,35 @@
 # -*- coding: utf-8 -*-
 
-import re
-import parameters
-import time
-from time import sleep
-from datetime import datetime
-from selenium import webdriver
-from  bs4 import BeautifulSoup
-from webdriver_manager.chrome import ChromeDriverManager
-from selenium.webdriver.chrome.options import Options
-from selenium.webdriver.common.by import By
-from selenium.webdriver.common.keys import Keys
-from parsel import Selector
-from datetime import datetime
-import numpy as np
-import pandas as pd
-import json
-import argparse
-import sys
+try:
+    import re
+    import parameters
+    import time
+    from time import sleep
+    from datetime import datetime
+    from selenium import webdriver
+    from  bs4 import BeautifulSoup
+    from webdriver_manager.chrome import ChromeDriverManager
+    from selenium.webdriver.chrome.options import Options
+    from selenium.webdriver.common.by import By
+    from selenium.webdriver.common.keys import Keys
+    from parsel import Selector
+    from datetime import datetime
+    import numpy as np
+    import pandas as pd
+    import json
+    import argparse
+    import sys
+    print('all module are loaded ')
+    print()
+except Exception as e:
+    print('Error ->>>: {} '.format(e))
+    print()
+
 
 SCROLL_PAUSE_TIME = 1
 
 options = Options()
-options.add_argument("--headless")
+# options.add_argument("--headless")
 driver = webdriver.Chrome(ChromeDriverManager().install(), chrome_options=options)
 
 def average(list):
@@ -74,7 +81,11 @@ def getProfileURLs(source):
 
         linkedin_profiles = driver.find_elements(By.XPATH, '//div/a[contains(@href,"linkedin.com/in/")]')
         linkedin_profiles = [profile.get_attribute('href') for profile in linkedin_profiles]
-        return linkedin_profiles
+
+    if source[0] == 'profile':
+        linkedin_profiles = [args.source[1]]
+        sleep(0.2)
+        
 
     if source[0] == 'file':
         print(source[0])
@@ -85,6 +96,8 @@ def getProfileURLs(source):
         print(source[0])
         print(source[1])
         pass
+
+    return linkedin_profiles
     
 # parses a type 2 job row
 def parseType2Jobs(alltext):
@@ -396,7 +409,7 @@ def returnProfileInfo_new(employeeLink):
     education_list = []
     skill_list = []
 
-    profile_dictionary['education'] = extract_education(linkedin_username)
+    # profile_dictionary['education'] = extract_education(linkedin_username)
 
     print('*********************************************************')
     print('')
@@ -418,22 +431,17 @@ if __name__ == "__main__":
 
     # Required positional argument
     parser.add_argument('--source', type=str, nargs=2, metavar=('[type]', '[query string, python file name or csv file name]'),
-                     required=True, help='type of linkedIn profiles to process can be : "query", "file" or "csv"')
+                     required=True, help='type of linkedIn profiles to process can be : "profile", "query", "file" or "csv"')
 
     args = parser.parse_args()
 
-    login()
-
     linkedin_profiles = []
-    
-    # linkedin_profiles = getProfileURLs(args.source)
-    linkedin_profiles = linkedin_profiles + ['https://uk.linkedin.com/in/kim-trefeil', 'https://www.linkedin.com/in/sir-hossein-yassaie-freng-fiet-55685012/', 'https://www.linkedin.com/in/kopanias/', 'https://www.linkedin.com/in/ykpgrr/']
 
-    # linkedin_profiles = linkedin_profiles + ['https://www.linkedin.com/in/ykpgrr/', 'https://www.linkedin.com/in/lee-braybrooke-73666927/', 'https://www.linkedin.com/in/saman-nejad/', 'https://www.linkedin.com/in/eluert-mukja/', 'https://www.linkedin.com/in/sir-hossein-yassaie-freng-fiet-55685012/']
+    linkedin_profiles = getProfileURLs(args.source)
 
-    # linkedin_profiles = ['https://www.linkedin.com/in/sir-hossein-yassaie-freng-fiet-55685012/']
-    
     print(linkedin_profiles)
+
+    login()
     
     profiles = []
     x = 1
