@@ -25,13 +25,6 @@ except Exception as e:
     print('Error ->>>: {} '.format(e))
     print()
 
-
-SCROLL_PAUSE_TIME = 1
-
-options = Options()
-# options.add_argument("--headless")
-driver = webdriver.Chrome(ChromeDriverManager().install(), chrome_options=options)
-
 def average(list):
     return sum(list) / len(list)
 
@@ -470,3 +463,13 @@ if __name__ == "__main__":
         json.dump(profiles, f)
     time.sleep(10)
     driver.quit()
+
+def main():
+    SCROLL_PAUSE_TIME = 1
+
+    options = Options()
+    # options.add_argument("--headless")
+    driver = webdriver.Chrome(ChromeDriverManager().install(), chrome_options=options)
+
+if __name__ == "__main__":
+    main()
