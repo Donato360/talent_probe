@@ -2,7 +2,7 @@
 
 try:
     import re
-    import parameters
+    from parameters import username, password
     import time
     from time import sleep
     from datetime import datetime
@@ -12,7 +12,6 @@ try:
     from selenium.webdriver.chrome.options import Options
     from selenium.webdriver.common.by import By
     from selenium.webdriver.common.keys import Keys
-    import seleniumwire.undetected_chromedriver as uc
     from parsel import Selector
     from datetime import datetime
     import numpy as np
@@ -20,134 +19,103 @@ try:
     import json
     import argparse
     import sys
-    import os
-    print('All modules are loaded ')
+    from login import Login
+    from profiles_urls import ProfileURLs
+    from profile_general_info import ProfileGeneralInfo
+    from helpers import average
+    print('all module are loaded ')
     print()
 except Exception as e:
-    print('Libraries Load Error ->>>: {} '.format(e))
+    print('Error ->>>: {} '.format(e))
     print()
-
-class ProfileURLs:
-    def __init__(self, driver, source):
-        self.driver = driver
-        self.source = source
-
-    def getProfileURLs(self):
-        if self.source[0] == 'query':
-            self.driver.get('https://www.google.com/')
-
-            accept_google_cookies_button = self.driver.find_element(By.XPATH, '//button/div[contains(text(), "Accept all")]')
-            accept_google_cookies_button.click()
-
-            google_search_input = self.driver.find_element(By.XPATH, '//input[@name="q"]')
-            google_search_input.send_keys(self.source[1])
-            google_search_input.send_keys(Keys.RETURN)
-
-            linkedin_profiles = self.driver.find_elements(By.XPATH, '//div/a[contains(@href,"linkedin.com/in/")]')
-            linkedin_profiles = [profile.get_attribute('href') for profile in linkedin_profiles]
-
-        if self.source[0] == 'profile':
-            linkedin_profiles = [self.source[1]]
-            
-        if self.source[0] == 'file':
-            print(self.source[0])
-            print(self.source[1])
-
-        if self.source[0] == 'csv':
-            print(self.source[0])
-            print(self.source[1])
-            pass
-
-        return linkedin_profiles
-
-class Login:
-    def __init__(self, driver, url, username, password):
-        self.driver = driver
-        self.url = url
-        self.username = username
-        self.password = password
-
-    def doLogin(self):
-        try:
-            self.driver.maximize_window()
-            time.sleep(0.1)
-
-            print(self.url)
-            self.driver.get(self.url)
-            self.driver.implicitly_wait(3)
-
-            eml = self.driver.find_element(by=By.ID, value="username")
-            eml.send_keys(self.username)
-            passwd = self.driver.find_element(by=By.ID, value="password")
-            passwd.send_keys(self.password)
-            loginbutton = self.driver.find_element(by=By.XPATH, value="//*[@id=\"organic-div\"]/form/div[3]/button")
-            loginbutton.click()
-            return('Successfull login: {} '.format(self.url))
-        except Exception as e:
-            return('Login error ->>>: {} '.format(e))
 
 def main():
     SCROLL_PAUSE_TIME = 1
 
-    os.environ['WDM_SSL_VERIFY'] = '0'
+    try:
+        options = Options()
+        # options.add_argument("--headless")
+        driver = webdriver.Chrome(ChromeDriverManager().install(), chrome_options=options)
+        print('Driver: {} has been successfully set'.format(driver.name))
+        print()
+    except Exception as e:
+        print('Webdriver not found')
+        print('Error ->>>: {} '.format(e))
+        print()
+        sys.exit()
 
-    print(os.path.dirname(os.path.abspath(__file__)))
+    try:
+        # Instantiate the parser
+        parser = argparse.ArgumentParser(description='Optional app description')
 
-    chrome_options = uc.ChromeOptions()
-    chrome_options.add_argument('--allow-insecure-localhost')
+        # Required positional argument
+        parser.add_argument('--source', type=str, nargs=2, metavar=('[type]', '[query string, python file name or csv file name]'),
+                        required=True, help='type of linkedIn profiles to process can be : "profile", "query", "file" or "csv"')
 
-    options = {
-        'ca_cert': '/Volumes/SAM_Backup/data_scraping/linkedIn_data_scraper/ca.crt'
-    }
+        args = parser.parse_args()
 
-    driver = uc.Chrome(
-        options=chrome_options,
-        seleniumwire_options=options
-    )
+        profileUrls_obj = ProfileURLs(driver, args.source)
 
-    url = "https://www.google.com/"
+        linkedin_profiles = profileUrls_obj.getProfileURLs()
 
-    driver.get(url)
+        print('Found profile(s): {}'.format(linkedin_profiles))
+        print()
+    except Exception as e:
+        print('Could not find profiles urls')
+        print('Error ->>>: {} '.format(e))
+        print()
+        sys.exit()   
 
-    # options = Options()
-    # # options.add_argument("--headless")
-    # options.add_experimental_option("detach", True)
+    try:
+        login_url = 'https://www.linkedin.com/login'
+        login_obj = Login(driver, login_url, username, password)
+        login_obj.doLogin()
+        print('Login to: {} was successfull'.format(login_url))
+        print()
+    except Exception as e:
+        print('Could not login to {} '.format(login_url))
+        print('Error ->>>: {} '.format(e))
+        print()
+        sys.exit()
 
-    # options = {
-    #     'ca_cert': '/ca.crt'
-    # }
+    current_profile_execution_time = 0
+    profiles_execution_times = []
+
+    profiles = []
+    x = 1
     
-    # chrome_options = uc.ChromeOptions()
+    for profile in linkedin_profiles:
+        try:
+            profileGeneralInfo_obj = ProfileGeneralInfo(driver, profile)
+            start = time.time()
 
-    # driver = uc.Chrome(
-    #     options=chrome_options,
-    #     seleniumwire_options=options
-    # )
+            profiles.append(profileGeneralInfo_obj.getGeneralInfo())
 
-    # # Instantiate the parser
-    # parser = argparse.ArgumentParser(description='Optional app description')
+            end = time.time()
 
-    # # Required positional argument
-    # parser.add_argument('--source', type=str, nargs=2, metavar=('[type]', '[query string, python file name or csv file name]'),
-    #                  required=True, help='type of linkedIn profiles to process can be : "profile", "query", "file" or "csv"')
+            current_profile_execution_time = (end-start) * 10**3
+            profiles_execution_times.append(current_profile_execution_time)
 
-    # args = parser.parse_args()
+            print('General Information for: {} was processed successfully'.format(profile))
+            print()
+        except Exception as e:
+            print('Could not process profile: {} '.format(profile))
+            print('Error ->>>: {} '.format(e))
+            print()
+            sys.exit()
 
-    # objProfiles = ProfileURLs(driver, args.source)
-    # linkedin_profiles = objProfiles.getProfileURLs()
-    # time.sleep(0.1)
+    average_execution_time = average(profiles_execution_times)
+    print("The average time of execution for a profile:", average_execution_time, "ms")
 
-    # url = "https://www.linkedin.com/login"
+    now = datetime.now() # current date and time
 
-    # if linkedin_profiles:
-    #     objLogin = Login(driver, url, parameters.username, parameters.password)
-    #     print(objLogin.doLogin())
-    #     print()
-    # else:
-    #     print('No profile(s) found')
-    #     print()
+    date_time = now.strftime("_%m_%d_%Y-%H_%M_%S")
+    file_name = 'linkedInProfiles' + date_time + '.json'
 
-    time.sleep(1)
+    with open(file_name, 'w') as f:
+        json.dump(profiles, f)
+    
+    driver.quit()
 
 if __name__ == "__main__":
     main()
