@@ -38,13 +38,11 @@ class ProfileEducation(Helper):
 
         profile_dictionary = {}
         education_list = []
-        dates = {}
         degree = []
         school = None
         start_date = None
         end_date = None
         degrees = None
-        datePosition = 0
 
         try:
             educations = source.find_all('li', {"class": "pvs-list__paged-list-item artdeco-list__item pvs-list__item--line-separated"})
@@ -54,18 +52,24 @@ class ProfileEducation(Helper):
         
         if educations:
             for education in educations:
+                datePosition = 0
+
                 alltext = education.getText().split('\n')
                 alltext = [x.strip() for x in alltext if x.strip()]
                 
                 if alltext:
                     for index, text in enumerate(alltext):
-                        dates =  self.processDate(text)
+                        print('index: {}'.format(index))
+                        print('alltext: {}'.format(alltext))
+                        print('*****************************************************************')
 
-                        if dates['start_date'] or dates['end_date']:
-                            print('datePosition: {}'.format(index))
-                            print('string containing date: {}'.format(text))
-                            print('*****************************************************************')
-                            break
+                        # if dates['start_date'] or dates['end_date']:
+                        #     print('datePosition: {}'.format(index))
+                        #     print('string containing date: {}'.format(text))
+                        #     print('start_date: {}'.format(dates['start_date']))
+                        #     print('end_date: {}'.format(dates['end_date']))
+                        #     print('*****************************************************************')
+                        #     break
 
                 # try:
                 #     if alltext[1]:

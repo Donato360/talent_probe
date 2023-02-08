@@ -7,8 +7,7 @@ class ProfileURLs:
         self.source = source
 
     def getProfileURLs(self):
-        print(self.source[0])
-        print(self.source[1])
+        
         if self.source[0] == 'query':
             self.driver.get('https://www.google.com/')
 

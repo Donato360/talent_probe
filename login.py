@@ -12,7 +12,6 @@ class Login:
         self.driver.maximize_window()
         sleep(0.1)
 
-        print(self.url)
         self.driver.get(self.url)
         self.driver.implicitly_wait(3)
 

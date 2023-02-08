@@ -18,9 +18,7 @@ def getUniqueItems(iterable):
 class Helper:
     def processDate(self, aStringWithDate):
 
-        dates = search_dates(aStringWithDate)
-
-        print('dates: {}'.format(dates))
+        dates = search_dates(aStringWithDate, languages=['en'])
 
         if not dates:
             start_date = None
