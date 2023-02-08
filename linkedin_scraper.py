@@ -22,6 +22,7 @@ try:
     from login import Login
     from profiles_urls import ProfileURLs
     from profile_general_info import ProfileGeneralInfo
+    from profile_education import ProfileEducation
     from helpers import average
     print('all module are loaded ')
     print()
@@ -34,8 +35,10 @@ def main():
 
     try:
         options = Options()
-        # options.add_argument("--headless")
+        chrome_options = webdriver.ChromeOptions()
+        chrome_options.add_experimental_option("detach", True)
         driver = webdriver.Chrome(ChromeDriverManager().install(), chrome_options=options)
+        # browser.set_window_size(1800, 900)
         print('Driver: {} has been successfully set'.format(driver.name))
         print()
     except Exception as e:
@@ -87,9 +90,14 @@ def main():
     for profile in linkedin_profiles:
         try:
             profileGeneralInfo_obj = ProfileGeneralInfo(driver, profile)
+            profileEducation_obj = ProfileEducation(driver, profile)
+    
             start = time.time()
 
-            profiles.append(profileGeneralInfo_obj.getGeneralInfo())
+            profile_dict = profileGeneralInfo_obj.getGeneralInfo() | profileEducation_obj.getEducation()
+            sleep(0.1)
+
+            profiles.append(profile_dict)
 
             end = time.time()
 
@@ -114,8 +122,6 @@ def main():
 
     with open(file_name, 'w') as f:
         json.dump(profiles, f)
-    
-    driver.quit()
 
 if __name__ == "__main__":
     main()

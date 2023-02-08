@@ -31,9 +31,7 @@ class ProfileGeneralInfo:
 
         try:
             name_info = source.find('div', class_='mt2 relative')
-            sleep(0.1)
             name = name_info.find('h1', class_='text-heading-xlarge inline t-24 v-align-middle break-words').get_text().strip()
-            sleep(0.1)
         except:
             name = None
 
@@ -56,7 +54,6 @@ class ProfileGeneralInfo:
 
         try:
             picture = source.find('img', class_='pv-top-card-profile-picture__image pv-top-card-profile-picture__image--show ember-view')
-            sleep(0.1)
             avatar = picture['src']
         except:
             avatar = None
@@ -80,7 +77,6 @@ class ProfileGeneralInfo:
 
         try:
             title = name_info.find('div', class_='text-body-medium break-words').get_text().lstrip().strip()
-            sleep(0.1)
         except:
             title = None
 
@@ -88,7 +84,6 @@ class ProfileGeneralInfo:
 
         try:
             location = name_info.find('span' , {'class': 'text-body-small inline t-black--light break-words'}).get_text().strip()
-            sleep(0.1)
         except:
             location = None
 
@@ -96,9 +91,7 @@ class ProfileGeneralInfo:
 
         try:
             about_section = source.find("div", {"id": "about"}).find_parent('section')
-            sleep(0.1)
             summary = about_section.find_all('span' , {'class': 'visually-hidden'})[1].get_text().strip()
-            sleep(0.1)
         except:
             summary = 'data not found'
 
