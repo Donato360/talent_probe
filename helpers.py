@@ -1,6 +1,4 @@
 from datetime import datetime
-from dateparser import parse
-from dateparser_data.settings import default_parsers
 from dateparser.search import search_dates
 
 def average(list):
@@ -18,7 +16,7 @@ def getUniqueItems(iterable):
 class Helper:
     def processDate(self, aStringWithDate):
 
-        dates = search_dates(aStringWithDate, languages=['en'])
+        dates = search_dates(aStringWithDate, languages=['en'], settings={'TIMEZONE': 'UTC', 'RELATIVE_BASE': datetime(2020, 1, 1), 'REQUIRE_PARTS': ['year']})
 
         if not dates:
             start_date = None
@@ -31,6 +29,9 @@ class Helper:
                 start_date = dates[0][1].strftime('%Y-%m-%d')
                 end_date = dates[1][1].strftime('%Y-%m-%d')
 
-        parsedDatesJson = {'start_date': start_date, 'end_date': end_date }
+        if start_date == None and end_date == None:
+            parsedDatesJson = None
+        else:
+            parsedDatesJson = {'start_date': start_date, 'end_date': end_date }
 
         return parsedDatesJson

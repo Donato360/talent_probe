@@ -69,8 +69,8 @@ class Login:
 
     def doLogin(self):
         try:
-            self.driver.maximize_window()
-            time.sleep(0.1)
+            # self.driver.maximize_window()
+            # time.sleep(0.1)
 
             print(self.url)
             self.driver.get(self.url)

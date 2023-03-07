@@ -24,6 +24,7 @@ try:
     from profile_general_info import ProfileGeneralInfo
     from profile_education import ProfileEducation
     from helpers import average
+    from selenium_stealth import stealth
     print('all module are loaded ')
     print()
 except Exception as e:
@@ -34,10 +35,26 @@ def main():
     SCROLL_PAUSE_TIME = 1
 
     try:
-        options = Options()
-        chrome_options = webdriver.ChromeOptions()
-        chrome_options.add_experimental_option("detach", True)
-        driver = webdriver.Chrome(ChromeDriverManager().install(), chrome_options=options)
+        options = webdriver.ChromeOptions()
+        # options.add_argument("start-maximized")
+        # chrome_options = webdriver.ChromeOptions()
+        # chrome_options.add_experimental_option("detach", True)
+        # options.add_argument("--headless")
+        options.add_experimental_option("detach", True)
+        options.add_experimental_option("excludeSwitches", ["enable-automation"])
+        options.add_experimental_option('useAutomationExtension', False)
+
+        driver = webdriver.Chrome(ChromeDriverManager().install(), options=options)
+
+        stealth(driver,
+            languages=["en-US", "en"],
+            vendor="Google Inc.",
+            platform="Win32",
+            webgl_vendor="Intel Inc.",
+            renderer="Intel Iris OpenGL Engine",
+            fix_hairline=True,
+        )
+
         # browser.set_window_size(1800, 900)
         print('Driver: {} has been successfully set'.format(driver.name))
         print()
@@ -60,6 +77,8 @@ def main():
         profileUrls_obj = ProfileURLs(driver, args.source)
 
         linkedin_profiles = profileUrls_obj.getProfileURLs()
+
+        linkedin_profiles = linkedin_profiles + ['https://www.linkedin.com/in/ykpgrr/', 'https://www.linkedin.com/in/lee-braybrooke-73666927/', 'https://www.linkedin.com/in/saman-nejad/', 'https://www.linkedin.com/in/eluert-mukja/', 'https://www.linkedin.com/in/sir-hossein-yassaie-freng-fiet-55685012/', 'https://www.linkedin.com/in/kopanias/']
 
         print('Found profile(s): {}'.format(linkedin_profiles))
         print()

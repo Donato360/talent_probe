@@ -10,7 +10,7 @@ class ProfileGeneralInfo:
     
     def getGeneralInfo(self):
         self.driver.get(self.profileLink)
-        sleep(0.2)
+        sleep(1)
 
         # Get scroll height after first time page load
         last_height = self.driver.execute_script("return document.body.scrollHeight")

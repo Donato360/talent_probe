@@ -9,8 +9,8 @@ class Login:
         self.password = password
 
     def doLogin(self):
-        self.driver.maximize_window()
-        sleep(0.1)
+        # self.driver.maximize_window()
+        # sleep(0.1)
 
         self.driver.get(self.url)
         self.driver.implicitly_wait(3)

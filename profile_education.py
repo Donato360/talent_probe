@@ -8,18 +8,80 @@ class ProfileEducation(Helper):
     def __init__(self, driver, profileLink):
         self.driver = driver
         self.profileLink = profileLink
+        self.educationItem = {
+            "school": {
+                "name": None
+            },
+            "end_date": None,
+            "start_date": None,
+            "degrees": []
+        }
+        self.educationList = []
+
+    def resetEducationItem(self):
+        self.educationItem = {
+            "school": {
+                "name": None
+            },
+            "end_date": None,
+            "start_date": None,
+            "degrees": []
+        }
 
     def processProfileLink(self):
         if self.profileLink[-1] == '/':
             self.profileLink = self.profileLink + 'details/education/'
         else:
             self.profileLink = self.profileLink + '/details/education/'
+
+    def processEducation(self, educationItemArray):
+        self.resetEducationItem()
+        
+        if len(educationItemArray) == 2:
+            dates = self.processDate(educationItemArray[1])
+
+            if dates:
+                self.educationItem['school'] = educationItemArray[0]
+                self.educationItem['start_date'] = dates['start_date']
+                self.educationItem['end_date'] = dates['end_date']
+            else:
+                self.educationItem['school'] = educationItemArray[0]
+                self.educationItem['degrees'].append(educationItemArray[1])
+
+        if len(educationItemArray) >= 3:
+            datePosition = -1
+
+            dates2 = self.processDate(educationItemArray[2])
+            if dates2:
+                datePosition = 2
+
+            dates1 = self.processDate(educationItemArray[1])
+            if dates1:
+                datePosition = 1
+
+            if datePosition == 2:
+                self.educationItem['school'] = educationItemArray[0]
+                self.educationItem['degrees'].append(educationItemArray[1])
+                self.educationItem['start_date'] = dates2['start_date']
+                self.educationItem['end_date'] = dates2['end_date']
+
+            if datePosition == 1:
+                self.educationItem['school'] = educationItemArray[0]
+                self.educationItem['degrees'].append(educationItemArray[2])
+                self.educationItem['start_date'] = dates1['start_date']
+                self.educationItem['end_date'] = dates1['end_date']
+            
+            if datePosition == -1:
+                self.educationItem['school'] = educationItemArray[0]
+                self.educationItem['degrees'].append(educationItemArray[1])
+
+        return self.educationItem
     
     def getEducation(self):
         self.processProfileLink()
 
         self.driver.get(self.profileLink)
-        sleep(0.1)
+        sleep(1)
 
         # Get scroll height after first time page load
         last_height = self.driver.execute_script("return document.body.scrollHeight")
@@ -27,7 +89,7 @@ class ProfileEducation(Helper):
             # Scroll down to bottom
             self.driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
             # Wait to load page / use a better technique like `waitforpageload` etc., if possible
-            sleep(2)
+            sleep(3)
             # Calculate new scroll height and compare with last scroll height
             new_height = self.driver.execute_script("return document.body.scrollHeight")
             if new_height == last_height:
@@ -37,97 +99,40 @@ class ProfileEducation(Helper):
         source = BeautifulSoup(self.driver.page_source, "html.parser")
 
         profile_dictionary = {}
-        education_list = []
-        degree = []
-        school = None
-        start_date = None
-        end_date = None
-        degrees = None
 
         try:
             educations = source.find_all('li', {"class": "pvs-list__paged-list-item artdeco-list__item pvs-list__item--line-separated"})
             sleep(0.1)
         except:
             educations = None
+
+        print('education length: {}'.format(len(educations)))
         
         if educations:
-            for education in educations:
-                datePosition = 0
+            for index, education in enumerate(educations):
+                print('index: {}'.format(index))
 
-                alltext = education.getText().split('\n')
-                alltext = [x.strip() for x in alltext if x.strip()]
-                
-                if alltext:
-                    for index, text in enumerate(alltext):
-                        print('index: {}'.format(index))
-                        print('alltext: {}'.format(alltext))
-                        print('*****************************************************************')
+                education = education.find_all('span', attrs={'aria-hidden':'true'})
+                education_item_array = []
 
-                        # if dates['start_date'] or dates['end_date']:
-                        #     print('datePosition: {}'.format(index))
-                        #     print('string containing date: {}'.format(text))
-                        #     print('start_date: {}'.format(dates['start_date']))
-                        #     print('end_date: {}'.format(dates['end_date']))
-                        #     print('*****************************************************************')
-                        #     break
+                for index,text in enumerate(education):
+                    education_item_array.append(text.getText())
+                    
+                    if index > 2:
+                        break
 
-                # try:
-                #     if alltext[1]:
-                #         self.aDate = alltext[1]
-                #         dates = self.processDate()
-                #         datePosition = 1
-                # except:
-                #     pass
+                if not education_item_array:
+                    self.educationList = None
+                else:
+                    self.educationList.append(self.processEducation(education_item_array))
+        else:
+             education_item = None
+             self.educationList = None
+             
+        print(self.educationList)
+        print()
+        print('*****************************************************************')
 
-                # try:
-                #     if alltext[2]:
-                #         self.aDate = alltext[2]
-                #         dates = self.processDate()
-                #         datePosition = 2
-                # except:
-                #     pass
-
-                # print(datePosition)
-
-                # if datePosition == 0:
-                #     start_date = None
-                #     end_date = None
-                #     degree.append(alltext[1])
-                # else:
-                #     if datePosition == 1:
-                #         if len(dates) == 1:
-                #             start_date = None
-                #             end_date = dates[0]
-                #             degree.append(None)
-                #         else:
-                #             start_date = dates[0]
-                #             end_date = dates[1]
-                #             degree.append(None)
-
-                #     if datePosition == 2:
-                #         if len(dates) == 1:
-                #             start_date = None
-                #             end_date = dates[0]
-                #             degree.append(alltext[1])
-                #         else:
-                #             start_date = dates[0]
-                #             end_date = dates[1]
-                #             degree.append(alltext[1])
-                
-                # education_details = {"school": {'name': alltext[0]},
-                #                         'end_date': end_date,
-                #                         'start_date': start_date,
-                #                         'degrees': ['']
-                #                     }
-                
-                education_details = {"school": {'name': school},
-                                        'end_date': end_date,
-                                        'start_date': start_date,
-                                        'degrees': [degrees]
-                                    }
-                
-                education_list.append(education_details)
-        
-        profile_dictionary['education'] = education_list
+        profile_dictionary['education'] = self.educationList
 
         return profile_dictionary

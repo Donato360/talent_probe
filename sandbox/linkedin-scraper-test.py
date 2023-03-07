@@ -23,7 +23,7 @@ def getUniqueItems(iterable):
     return result
 
 driver = webdriver.Chrome(ChromeDriverManager().install())
-driver.maximize_window()
+# driver.maximize_window()
 sleep(0.5)
 
 driver.get('https://www.linkedin.com/')

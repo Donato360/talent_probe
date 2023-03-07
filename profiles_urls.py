@@ -21,7 +21,7 @@ class ProfileURLs:
             linkedin_profiles = self.driver.find_elements(By.XPATH, '//div/a[contains(@href,"linkedin.com/in/")]')
             linkedin_profiles = [profile.get_attribute('href') for profile in linkedin_profiles]
 
-            linkedin_profiles = linkedin_profiles + ['https://www.linkedin.com/in/ykpgrr/', 'https://www.linkedin.com/in/lee-braybrooke-73666927/', 'https://www.linkedin.com/in/saman-nejad/', 'https://www.linkedin.com/in/eluert-mukja/', 'https://www.linkedin.com/in/sir-hossein-yassaie-freng-fiet-55685012/', 'https://www.linkedin.com/in/kopanias/']
+            linkedin_profiles = linkedin_profiles
 
         if self.source[0] == 'profile':
             linkedin_profiles = [self.source[1]]

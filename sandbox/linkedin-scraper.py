@@ -39,7 +39,7 @@ def getUniqueItems(iterable):
 
 # Login
 def login():
-    driver.maximize_window()
+    # driver.maximize_window()
     time.sleep(0.1)
 
     # login = open the file 'parameters.py' and edit your login details. This is your linkedin account login, store in a seperate text file. I recommend creating a fake account so your real one doesn't get flagged or banned
@@ -469,7 +469,8 @@ def main():
 
     options = Options()
     # options.add_argument("--headless")
-    driver = webdriver.Chrome(ChromeDriverManager().install(), chrome_options=options)
+    chrome_options.add_experimental_option("detach", True)
+    driver = webdriver.Chrome(ChromeDriverManager().install(), chrome_options=chrome_options)
 
 if __name__ == "__main__":
     main()
