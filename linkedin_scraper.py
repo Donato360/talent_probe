@@ -19,12 +19,14 @@ try:
     import json
     import argparse
     import sys
+    from selenium_stealth import stealth
+    from helpers import average 
     from login import Login
     from profiles_urls import ProfileURLs
     from profile_general_info import ProfileGeneralInfo
     from profile_education import ProfileEducation
-    from helpers import average
-    from selenium_stealth import stealth
+    from profile_experience import ProfileExperience
+    
     print('all module are loaded ')
     print()
 except Exception as e:
@@ -78,7 +80,7 @@ def main():
 
         linkedin_profiles = profileUrls_obj.getProfileURLs()
 
-        linkedin_profiles = linkedin_profiles + ['https://www.linkedin.com/in/ykpgrr/', 'https://www.linkedin.com/in/lee-braybrooke-73666927/', 'https://www.linkedin.com/in/saman-nejad/', 'https://www.linkedin.com/in/eluert-mukja/', 'https://www.linkedin.com/in/sir-hossein-yassaie-freng-fiet-55685012/', 'https://www.linkedin.com/in/kopanias/']
+        linkedin_profiles = linkedin_profiles + ['https://www.linkedin.com/in/ykpgrr/', 'https://www.linkedin.com/in/lee-braybrooke-73666927/', 'https://www.linkedin.com/in/saman-nejad/', 'https://www.linkedin.com/in/eluert-mukja/', 'https://www.linkedin.com/in/sir-hossein-yassaie-freng-fiet-55685012/', 'https://www.linkedin.com/in/kopanias/','https://www.linkedin.com/in/victoriasauven/']
 
         print('Found profile(s): {}'.format(linkedin_profiles))
         print()
@@ -108,12 +110,15 @@ def main():
     
     for profile in linkedin_profiles:
         try:
+            profile = profile.replace('uk.linkedin.com', 'www.linkedin.com')
+
             profileGeneralInfo_obj = ProfileGeneralInfo(driver, profile)
             profileEducation_obj = ProfileEducation(driver, profile)
+            profileExperience_obj = ProfileExperience(driver, profile)
     
             start = time.time()
 
-            profile_dict = profileGeneralInfo_obj.getGeneralInfo() | profileEducation_obj.getEducation()
+            profile_dict = profileGeneralInfo_obj.getGeneralInfo() | profileEducation_obj.getEducation() | profileExperience_obj.getExperience()
             sleep(0.1)
 
             profiles.append(profile_dict)

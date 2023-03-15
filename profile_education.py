@@ -81,7 +81,7 @@ class ProfileEducation(Helper):
         self.processProfileLink()
 
         self.driver.get(self.profileLink)
-        sleep(1)
+        sleep(2)
 
         # Get scroll height after first time page load
         last_height = self.driver.execute_script("return document.body.scrollHeight")
@@ -102,15 +102,15 @@ class ProfileEducation(Helper):
 
         try:
             educations = source.find_all('li', {"class": "pvs-list__paged-list-item artdeco-list__item pvs-list__item--line-separated"})
-            sleep(0.1)
+            sleep(1)
         except:
             educations = None
 
-        print('education length: {}'.format(len(educations)))
+        # print('education length: {}'.format(len(educations)))
         
         if educations:
             for index, education in enumerate(educations):
-                print('index: {}'.format(index))
+                # print('index: {}'.format(index))
 
                 education = education.find_all('span', attrs={'aria-hidden':'true'})
                 education_item_array = []
@@ -126,12 +126,11 @@ class ProfileEducation(Helper):
                 else:
                     self.educationList.append(self.processEducation(education_item_array))
         else:
-             education_item = None
              self.educationList = None
              
-        print(self.educationList)
-        print()
-        print('*****************************************************************')
+        # print(self.educationList)
+        # print()
+        # print('*****************************************************************')
 
         profile_dictionary['education'] = self.educationList
 
