@@ -40,7 +40,7 @@ def main(source):
         # options.add_argument("start-maximized")
         # chrome_options = webdriver.ChromeOptions()
         # chrome_options.add_experimental_option("detach", True)
-        # options.add_argument("--headless")
+        options.add_argument("--headless")
         options.add_experimental_option("detach", True)
         options.add_experimental_option("excludeSwitches", ["enable-automation"])
         options.add_experimental_option('useAutomationExtension', False)
