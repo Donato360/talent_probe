@@ -13,7 +13,7 @@ class Login:
         # sleep(0.1)
 
         self.driver.get(self.url)
-        self.driver.implicitly_wait(3)
+        self.driver.implicitly_wait(30)
 
         eml = self.driver.find_element(by=By.ID, value="username")
         eml.send_keys(self.username)

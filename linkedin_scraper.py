@@ -5,7 +5,6 @@ try:
     from parameters import username, password
     import time
     from time import sleep
-    from datetime import datetime
     from selenium import webdriver
     from  bs4 import BeautifulSoup
     from webdriver_manager.chrome import ChromeDriverManager
@@ -33,7 +32,7 @@ except Exception as e:
     print('Error ->>>: {} '.format(e))
     print()
 
-def main():
+def main(source):
     SCROLL_PAUSE_TIME = 1
 
     try:
@@ -67,20 +66,11 @@ def main():
         sys.exit()
 
     try:
-        # Instantiate the parser
-        parser = argparse.ArgumentParser(description='Optional app description')
-
-        # Required positional argument
-        parser.add_argument('--source', type=str, nargs=2, metavar=('[type]', '[query string, python file name or csv file name]'),
-                        required=True, help='type of linkedIn profiles to process can be : "profile", "query", "file" or "csv"')
-
-        args = parser.parse_args()
-
-        profileUrls_obj = ProfileURLs(driver, args.source)
+        profileUrls_obj = ProfileURLs(driver, source)
 
         linkedin_profiles = profileUrls_obj.getProfileURLs()
 
-        linkedin_profiles = linkedin_profiles + ['https://www.linkedin.com/in/ykpgrr/', 'https://www.linkedin.com/in/lee-braybrooke-73666927/', 'https://www.linkedin.com/in/saman-nejad/', 'https://www.linkedin.com/in/eluert-mukja/', 'https://www.linkedin.com/in/sir-hossein-yassaie-freng-fiet-55685012/', 'https://www.linkedin.com/in/kopanias/','https://www.linkedin.com/in/victoriasauven/']
+        # linkedin_profiles = linkedin_profiles + ['https://www.linkedin.com/in/ykpgrr/', 'https://www.linkedin.com/in/lee-braybrooke-73666927/', 'https://www.linkedin.com/in/saman-nejad/', 'https://www.linkedin.com/in/eluert-mukja/', 'https://www.linkedin.com/in/sir-hossein-yassaie-freng-fiet-55685012/', 'https://www.linkedin.com/in/kopanias/','https://www.linkedin.com/in/victoriasauven/']
 
         print('Found profile(s): {}'.format(linkedin_profiles))
         print()
@@ -111,6 +101,7 @@ def main():
     for profile in linkedin_profiles:
         try:
             profile = profile.replace('uk.linkedin.com', 'www.linkedin.com')
+            profile = 'https://www.linkedin.com/in/' + profile
 
             profileGeneralInfo_obj = ProfileGeneralInfo(driver, profile)
             profileEducation_obj = ProfileEducation(driver, profile)
@@ -138,14 +129,5 @@ def main():
 
     average_execution_time = average(profiles_execution_times)
     print("The average time of execution for a profile:", average_execution_time, "ms")
-
-    now = datetime.now() # current date and time
-
-    date_time = now.strftime("_%m_%d_%Y-%H_%M_%S")
-    file_name = 'linkedInProfiles' + date_time + '.json'
-
-    with open(file_name, 'w') as f:
-        json.dump(profiles, f)
-
-if __name__ == "__main__":
-    main()
+    
+    return profiles

@@ -22,7 +22,7 @@ class Helper:
         aStringWithDate = aStringWithDate.split(sep, 1)[0]
 
         dates = search_dates(aStringWithDate, languages=['en'], settings={'TIMEZONE': 'UTC', 'RELATIVE_BASE': datetime(2020, 1, 1), 'REQUIRE_PARTS': ['year']})
-        print('dates: {}'.format(dates))
+        # print('dates: {}'.format(dates))
 
         if not dates:
             start_date = None
