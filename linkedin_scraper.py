@@ -40,10 +40,11 @@ def main(source):
         # options.add_argument("start-maximized")
         # chrome_options = webdriver.ChromeOptions()
         # chrome_options.add_experimental_option("detach", True)
-        options.add_argument("--headless")
+        # options.add_argument("--headless")
         options.add_experimental_option("detach", True)
         options.add_experimental_option("excludeSwitches", ["enable-automation"])
         options.add_experimental_option('useAutomationExtension', False)
+        global driver
 
         driver = webdriver.Chrome(ChromeDriverManager().install(), options=options)
 
@@ -86,6 +87,9 @@ def main(source):
         login_obj.doLogin()
         print('Login to: {} was successfull'.format(login_url))
         print()
+
+        print(f'driver.command_executor._url: {driver.command_executor._url}')
+        print(f'driver.session_id: {driver.session_id}')
     except Exception as e:
         print('Could not login to {} '.format(login_url))
         print('Error ->>>: {} '.format(e))
