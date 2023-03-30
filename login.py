@@ -10,7 +10,7 @@ class Login:
 
     def doLogin(self):
         # self.driver.maximize_window()
-        # sleep(0.1)
+        # # sleep(0.1)
 
         self.driver.get(self.url)
         self.driver.implicitly_wait(30)

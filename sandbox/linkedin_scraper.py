@@ -70,7 +70,7 @@ class Login:
     def doLogin(self):
         try:
             # self.driver.maximize_window()
-            # time.sleep(0.1)
+            # # time.# sleep(0.1)
 
             print(self.url)
             self.driver.get(self.url)
@@ -135,7 +135,7 @@ def main():
 
     # objProfiles = ProfileURLs(driver, args.source)
     # linkedin_profiles = objProfiles.getProfileURLs()
-    # time.sleep(0.1)
+    # # time.# sleep(0.1)
 
     # url = "https://www.linkedin.com/login"
 
@@ -147,7 +147,7 @@ def main():
     #     print('No profile(s) found')
     #     print()
 
-    time.sleep(1)
+    # time.# sleep(1)
 
 if __name__ == "__main__":
     main()

@@ -122,7 +122,7 @@ def main(source):
             start = time.time()
 
             profile_dict = profileGeneralInfo_obj.getGeneralInfo() | profileEducation_obj.getEducation() | profileExperience_obj.getExperience()
-            sleep(0.1)
+            # sleep(0.1)
 
             profiles.append(profile_dict)
 

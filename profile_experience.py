@@ -578,7 +578,7 @@ class ProfileExperience(Helper):
         self.processProfileLink()
 
         self.driver.get(self.profileLink)
-        sleep(2)
+        # sleep(2)
 
         # Get scroll height after first time page load
         last_height = self.driver.execute_script(
@@ -588,7 +588,7 @@ class ProfileExperience(Helper):
             self.driver.execute_script(
                 "window.scrollTo(0, document.body.scrollHeight);")
             # Wait to load page / use a better technique like `waitforpageload` etc., if possible
-            sleep(3)
+            # sleep(3)
             # Calculate new scroll height and compare with last scroll height
             new_height = self.driver.execute_script(
                 "return document.body.scrollHeight")
@@ -604,7 +604,7 @@ class ProfileExperience(Helper):
         try:
             experiences = source.find_all(
                 'li', {"class": "pvs-list__paged-list-item artdeco-list__item pvs-list__item--line-separated"})
-            sleep(1)
+            # sleep(1)
         except:
             experiences = None
 

@@ -106,7 +106,7 @@ def main():
     driver= WebDriver()
     driverinstance = driver.driver_instance
     driverinstance.get("https://www.expressvpn.com/what-is-my-ip")
-    time.sleep(5)
+    # time.# sleep(5)
     print("done")
 
 if __name__ == "__main__":

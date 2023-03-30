@@ -40,7 +40,7 @@ def getUniqueItems(iterable):
 # Login
 def login():
     # driver.maximize_window()
-    time.sleep(0.1)
+    # time.# sleep(0.1)
 
     # login = open the file 'parameters.py' and edit your login details. This is your linkedin account login, store in a seperate text file. I recommend creating a fake account so your real one doesn't get flagged or banned
     email = parameters.username
@@ -55,7 +55,7 @@ def login():
     passwd.send_keys(password)
     loginbutton = driver.find_element(by=By.XPATH, value="//*[@id=\"organic-div\"]/form/div[3]/button")
     loginbutton.click()
-    time.sleep(0.2)
+    # # time.# sleep(0.2)
 
 
 # Return profiles urls. User can upload profiles URLs from a linkedIn query, a python file or a csv file
@@ -65,19 +65,19 @@ def getProfileURLs(source):
 
         accept_google_cookies_button = driver.find_element(By.XPATH, '//button/div[contains(text(), "Accept all")]')
         accept_google_cookies_button.click()
-        sleep(0.2)
+        # # sleep(0.2)
 
         google_search_input = driver.find_element(By.XPATH, '//input[@name="q"]')
         google_search_input.send_keys(source[1])
         google_search_input.send_keys(Keys.RETURN)
-        sleep(0.2)
+        # # sleep(0.2)
 
         linkedin_profiles = driver.find_elements(By.XPATH, '//div/a[contains(@href,"linkedin.com/in/")]')
         linkedin_profiles = [profile.get_attribute('href') for profile in linkedin_profiles]
 
     if source[0] == 'profile':
         linkedin_profiles = [args.source[1]]
-        sleep(0.2)
+        # # sleep(0.2)
         
 
     if source[0] == 'file':
@@ -130,7 +130,7 @@ def parseType1Job(alltext):
 def returnProfileInfo(employeeLink):
     url = employeeLink
     driver.get(url)
-    time.sleep(0.2)
+    # # time.# sleep(0.2)
     source = BeautifulSoup(driver.page_source, "html.parser")
 
     profile_dictionary = {}
@@ -157,7 +157,7 @@ def returnProfileInfo(employeeLink):
 
     profile_dictionary['location_name'] = location
     
-    time.sleep(0.1)
+    # time.# sleep(0.1)
     experiences = source.find_all('li', class_='artdeco-list__item pvs-list__item--line-separated pvs-list__item--one-column')
     certification_list = []
     education_list = []
@@ -199,7 +199,7 @@ def returnProfileInfo(employeeLink):
     # experiences
     url = driver.current_url + '/details/experience/'
     driver.get(url)
-    time.sleep(0.2)
+    # time.# sleep(0.2)
 
     # Get scroll height
     last_height = driver.execute_script("return document.body.scrollHeight")
@@ -209,7 +209,7 @@ def returnProfileInfo(employeeLink):
         driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
 
         # Wait to load page
-        time.sleep(SCROLL_PAUSE_TIME)
+        # time.# sleep(SCROLL_PAUSE_TIME)
 
         # Calculate new scroll height and compare with last scroll height
         new_height = driver.execute_script("return document.body.scrollHeight")
@@ -218,7 +218,7 @@ def returnProfileInfo(employeeLink):
         last_height = new_height
 
     source = BeautifulSoup(driver.page_source, "html.parser")
-    time.sleep(1)
+    # time.# sleep(1)
     exp = source.find_all('li')
     experience_list = []
 
@@ -233,7 +233,7 @@ def returnProfileInfo(employeeLink):
     # experiences
     url = driver.current_url + '/details/experience/'
     driver.get(url)
-    time.sleep(0.2)
+    # time.# sleep(0.2)
 
     # Get scroll height
     last_height = driver.execute_script("return document.body.scrollHeight")
@@ -243,7 +243,7 @@ def returnProfileInfo(employeeLink):
         driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
 
         # Wait to load page
-        time.sleep(SCROLL_PAUSE_TIME)
+        # time.# sleep(SCROLL_PAUSE_TIME)
 
         # Calculate new scroll height and compare with last scroll height
         new_height = driver.execute_script("return document.body.scrollHeight")
@@ -252,7 +252,7 @@ def returnProfileInfo(employeeLink):
         last_height = new_height
 
     source = BeautifulSoup(driver.page_source, 'lxml')
-    time.sleep(0.1)
+    # time.# sleep(0.1)
     exp = source.find_all('li', {"class": "pvs-list__paged-list-item artdeco-list__item pvs-list__item--line-separated"})
     experience_list = []
 
@@ -284,7 +284,7 @@ def extract_education(current_username):
         driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
 
         # Wait to load page
-        time.sleep(SCROLL_PAUSE_TIME)
+        # time.# sleep(SCROLL_PAUSE_TIME)
 
         # Calculate new scroll height and compare with last scroll height
         new_height = driver.execute_script("return document.body.scrollHeight")
@@ -323,7 +323,7 @@ def extract_education(current_username):
 def returnProfileInfo_new(employeeLink):
     url = employeeLink
     driver.get(url)
-    time.sleep(0.2)
+    # time.# sleep(0.2)
     source = BeautifulSoup(driver.page_source, "html.parser")
 
     profile_dictionary = {}
@@ -396,7 +396,7 @@ def returnProfileInfo_new(employeeLink):
 
     profile_dictionary['summary'] = summary
     
-    time.sleep(0.1)
+    # time.# sleep(0.1)
 
     certification_list = []
     education_list = []
@@ -461,7 +461,7 @@ if __name__ == "__main__":
 
     with open(file_name, 'w') as f:
         json.dump(profiles, f)
-    time.sleep(10)
+    # time.# sleep(10)
     driver.quit()
 
 def main():

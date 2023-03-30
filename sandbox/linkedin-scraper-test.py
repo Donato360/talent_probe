@@ -24,39 +24,39 @@ def getUniqueItems(iterable):
 
 driver = webdriver.Chrome(ChromeDriverManager().install())
 # driver.maximize_window()
-sleep(0.5)
+# # sleep(0.5)
 
 driver.get('https://www.linkedin.com/')
-sleep(2)
+# # sleep(2)
 
 accept_cookies_button = driver.find_element(By.XPATH, '//button[contains(text(), "Accept")]')
 accept_cookies_button.click()
 
 access_button = driver.find_element(By.XPATH, '//a[contains(text(), "Sign in")]')
 access_button.click()
-sleep(3)
+# # sleep(3)
 
 username_input = driver.find_element(By.XPATH, '//input[@name="session_key"]')
 username_input.send_keys(parameters.username)
-sleep(0.5)
+# # sleep(0.5)
 password_input = driver.find_element(By.XPATH, '//input[@name="session_password"]')
 password_input.send_keys(parameters.password)
-sleep(0.5)
+# # sleep(0.5)
 
 signin_button = driver.find_element(By.XPATH, '//button[contains(text(), "Sign in")]')
 signin_button.click()
-sleep(0.5)
+# # sleep(0.5)
 
 driver.get('https://www.google.com/')
 
 accept_google_cookies_button = driver.find_element(By.XPATH, '//button/div[contains(text(), "Accept all")]')
 accept_google_cookies_button.click()
-sleep(0.5)
+# # sleep(0.5)
 
 google_search_input = driver.find_element(By.XPATH, '//input[@name="q"]')
 google_search_input.send_keys(parameters.search_query)
 google_search_input.send_keys(Keys.RETURN)
-sleep(1)
+# # sleep(1)
 
 # linkedin_profiles = driver.find_elements(By.XPATH, '//div/a[contains(@href,"linkedin.com/in/")]')
 # linkedin_profiles = [profile.get_attribute('href') for profile in linkedin_profiles]
@@ -88,7 +88,7 @@ for profile in linkedin_profiles:
         driver.execute_script('window.scrollTo(0, document.body.scrollHeight);')
 
         # wait for page to load
-        sleep(SCROLL_PAUSE_TIME)
+        # sleep(SCROLL_PAUSE_TIME)
 
         # calculate new scroll height with last scroll height
         new_height = driver.execute_script('window.scrollTo(0, document.body.scrollHeight);')
