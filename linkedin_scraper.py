@@ -25,6 +25,7 @@ try:
     from profile_general_info import ProfileGeneralInfo
     from profile_education import ProfileEducation
     from profile_experience import ProfileExperience
+    from afile import load_cookie
     
     print('all module are loaded ')
     print()
@@ -37,25 +38,32 @@ def main(source):
 
     try:
         options = webdriver.ChromeOptions()
-        # options.add_argument("start-maximized")
-        # chrome_options = webdriver.ChromeOptions()
-        # chrome_options.add_experimental_option("detach", True)
-        # options.add_argument("--headless")
-        options.add_experimental_option("detach", True)
-        options.add_experimental_option("excludeSwitches", ["enable-automation"])
-        options.add_experimental_option('useAutomationExtension', False)
-        global driver
+        # # options.add_argument("start-maximized")
+        # # chrome_options = webdriver.ChromeOptions()
+        # # chrome_options.add_experimental_option("detach", True)
+        options.add_argument("--headless")
+        # options.add_experimental_option("detach", True)
+        # options.add_experimental_option("excludeSwitches", ["enable-automation"])
+        # options.add_experimental_option('useAutomationExtension', False)
+        # global driver
 
         driver = webdriver.Chrome(ChromeDriverManager().install(), options=options)
+        driver.get('https://www.linkedin.com/')
+        load_cookie(driver, '/tmp/cookie')
 
-        stealth(driver,
-            languages=["en-US", "en"],
-            vendor="Google Inc.",
-            platform="Win32",
-            webgl_vendor="Intel Inc.",
-            renderer="Intel Iris OpenGL Engine",
-            fix_hairline=True,
-        )
+        # stealth(driver,
+        #     languages=["en-US", "en"],
+        #     vendor="Google Inc.",
+        #     platform="Win32",
+        #     webgl_vendor="Intel Inc.",
+        #     renderer="Intel Iris OpenGL Engine",
+        #     fix_hairline=True,
+        # )
+
+        # with open('driver.pickle', 'rb') as f:
+        # # The protocol version used is detected automatically, so we do not
+        # # have to specify it.
+        #     data = pickle.load(f)
 
         # browser.set_window_size(1800, 900)
         print('Driver: {} has been successfully set'.format(driver.name))
@@ -81,20 +89,20 @@ def main(source):
         print()
         sys.exit()   
 
-    try:
-        login_url = 'https://www.linkedin.com/login'
-        login_obj = Login(driver, login_url, username, password)
-        login_obj.doLogin()
-        print('Login to: {} was successfull'.format(login_url))
-        print()
+    # try:
+    #     login_url = 'https://www.linkedin.com/login'
+    #     login_obj = Login(driver, login_url, username, password)
+    #     login_obj.doLogin()
+    #     print('Login to: {} was successfull'.format(login_url))
+    #     print()
 
-        print(f'driver.command_executor._url: {driver.command_executor._url}')
-        print(f'driver.session_id: {driver.session_id}')
-    except Exception as e:
-        print('Could not login to {} '.format(login_url))
-        print('Error ->>>: {} '.format(e))
-        print()
-        sys.exit()
+    #     print(f'driver.command_executor._url: {driver.command_executor._url}')
+    #     print(f'driver.session_id: {driver.session_id}')
+    # except Exception as e:
+    #     print('Could not login to {} '.format(login_url))
+    #     print('Error ->>>: {} '.format(e))
+    #     print()
+    #     sys.exit()
 
     current_profile_execution_time = 0
     profiles_execution_times = []

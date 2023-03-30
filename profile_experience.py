@@ -144,8 +144,8 @@ class ProfileExperience(Helper):
         return self.experienceItem
 
     def processJobType2(self, experience):
-        print('job type 2:')
-        print()
+        # print('job type 2:')
+        # print()
         experience_decomposed = copy.copy(experience)
 
         for ul in experience_decomposed('ul'):
@@ -168,15 +168,15 @@ class ProfileExperience(Helper):
                         self.experienceItem['company']['location']['country'] = ','.join(
                             locations_general['countries'])
 
-        print('company_name: {}'.format(company_name))
-        print('city: {}'.format(
-            self.experienceItem['company']['location']['city']))
-        print('region: {}'.format(
-            self.experienceItem['company']['location']['region']))
-        print('country: {}'.format(
-            self.experienceItem['company']['location']['country']))
+        # print('company_name: {}'.format(company_name))
+        # print('city: {}'.format(
+        #     self.experienceItem['company']['location']['city']))
+        # print('region: {}'.format(
+        #     self.experienceItem['company']['location']['region']))
+        # print('country: {}'.format(
+        #     self.experienceItem['company']['location']['country']))
 
-        print()
+        # print()
 
         for li_tag in experience.find('ul', {'class': 'pvs-list'}):
 
@@ -223,7 +223,7 @@ class ProfileExperience(Helper):
                             summary.append(item)
 
                     if (not dates_1) and (locations_1):
-                        print(locations_1)
+                        # print(locations_1)
                         if len(experience_item_array[1].split() <= 6):
                             if locations_1['cities']:
                                 self.experienceItem['company']['location']['city'] = ','.join(
@@ -246,13 +246,13 @@ class ProfileExperience(Helper):
                         self.experienceItem['start_date'] = dates_1['start_date']
                         self.experienceItem['end_date'] = dates_1['end_date']
 
-                    print('dates_1 = 2', dates_1)
-                    print('dates_2 = 2', dates_2)
-                    print('locations_1 = 2', locations_1)
-                    print('locations_2 = 2', locations_2)
-                    print()
-                    print(experience_item_array)
-                    print()
+                    # print('dates_1 = 2', dates_1)
+                    # print('dates_2 = 2', dates_2)
+                    # print('locations_1 = 2', locations_1)
+                    # print('locations_2 = 2', locations_2)
+                    # print()
+                    # print(experience_item_array)
+                    # print()
 
                 if len(experience_item_array) > 2:
                     dates_1 = self.processDate(experience_item_array[1])
@@ -567,8 +567,8 @@ class ProfileExperience(Helper):
                 if summary:
                     self.experienceItem['summary'] = ','.join(summary)
 
-                print(self.experienceItem)
-                print('@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@')
+                # print(self.experienceItem)
+                # print('@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@')
 
                 self.experienceItems.append(self.experienceItem)
 
@@ -612,8 +612,8 @@ class ProfileExperience(Helper):
             for index, experience in enumerate(experiences):
                 self.resetExperienceItem()
 
-                print('index: {}'.format(index))
-                print()
+                # print('index: {}'.format(index))
+                # print()
 
                 experience_1 = experience.find_all(
                     'span', attrs={'aria-hidden': 'true'})
@@ -640,8 +640,8 @@ class ProfileExperience(Helper):
         else:
             self.experienceList = None
 
-        print()
-        print('*****************************************************************')
+        # print()
+        # print('*****************************************************************')
 
         profile_dictionary['experience'] = self.experienceList
 

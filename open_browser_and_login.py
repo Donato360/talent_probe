@@ -7,6 +7,7 @@ try:
     import sys
     from selenium_stealth import stealth
     from login import Login
+    from afile import save_cookie
     
     print('all module are loaded ')
     print()
@@ -21,8 +22,8 @@ def main():
         # options.add_argument("start-maximized")
         # chrome_options = webdriver.ChromeOptions()
         # chrome_options.add_experimental_option("detach", True)
-        # options.add_argument("--headless")
-        options.add_experimental_option("detach", True)
+        options.add_argument("--headless")
+        # options.add_experimental_option("detach", True)
         options.add_experimental_option("excludeSwitches", ["enable-automation"])
         options.add_experimental_option('useAutomationExtension', False)
         global driver
@@ -56,6 +57,9 @@ def main():
 
         print(f'driver.command_executor._url: {driver.command_executor._url}')
         print(f'driver.session_id: {driver.session_id}')
+
+        save_cookie(driver, '/tmp/cookie')
+
     except Exception as e:
         print('Could not login to {} '.format(login_url))
         print('Error ->>>: {} '.format(e))
