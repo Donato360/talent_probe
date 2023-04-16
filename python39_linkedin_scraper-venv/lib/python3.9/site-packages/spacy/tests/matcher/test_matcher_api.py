@@ -1,13 +1,9 @@
-# coding: utf-8
-from __future__ import unicode_literals
-
 import pytest
-import re
 from mock import Mock
-from spacy.matcher import Matcher, DependencyMatcher
-from spacy.tokens import Doc, Token
+from spacy.matcher import Matcher
+from spacy.tokens import Doc, Token, Span
+
 from ..doc.test_underscore import clean_underscore  # noqa: F401
-from ..util import get_doc
 
 
 @pytest.fixture
@@ -35,6 +31,15 @@ def test_matcher_from_api_docs(en_vocab):
     assert "Rule" in matcher
     on_match, patterns = matcher.get("Rule")
     assert len(patterns[0])
+
+
+def test_matcher_empty_patterns_warns(en_vocab):
+    matcher = Matcher(en_vocab)
+    assert len(matcher) == 0
+    doc = Doc(en_vocab, words=["This", "is", "quite", "something"])
+    with pytest.warns(UserWarning):
+        matcher(doc)
+    assert len(doc.ents) == 0
 
 
 def test_matcher_from_usage_docs(en_vocab):
@@ -67,18 +72,11 @@ def test_matcher_len_contains(matcher):
     assert "TEST2" not in matcher
 
 
-def test_matcher_add_new_old_api(en_vocab):
+def test_matcher_add_new_api(en_vocab):
     doc = Doc(en_vocab, words=["a", "b"])
     patterns = [[{"TEXT": "a"}], [{"TEXT": "a"}, {"TEXT": "b"}]]
     matcher = Matcher(en_vocab)
-    matcher.add("OLD_API", None, *patterns)
-    assert len(matcher(doc)) == 2
-    matcher = Matcher(en_vocab)
     on_match = Mock()
-    matcher.add("OLD_API_CALLBACK", on_match, *patterns)
-    assert len(matcher(doc)) == 2
-    assert on_match.call_count == 2
-    # New API: add(key: str, patterns: List[List[dict]], on_match: Callable)
     matcher = Matcher(en_vocab)
     matcher.add("NEW_API", patterns)
     assert len(matcher(doc)) == 2
@@ -117,6 +115,155 @@ def test_matcher_match_multi(matcher):
     assert matcher(doc) == [
         (doc.vocab.strings["GoogleNow"], 2, 4),
         (doc.vocab.strings["Java"], 5, 6),
+    ]
+
+
+@pytest.mark.parametrize(
+    "rules,match_locs",
+    [
+        (
+            {
+                "GoogleNow": [[{"ORTH": {"FUZZY": "Google"}}, {"ORTH": "Now"}]],
+            },
+            [(2, 4)],
+        ),
+        (
+            {
+                "Java": [[{"LOWER": {"FUZZY": "java"}}]],
+            },
+            [(5, 6)],
+        ),
+        (
+            {
+                "JS": [[{"ORTH": {"FUZZY": "JavaScript"}}]],
+                "GoogleNow": [[{"ORTH": {"FUZZY": "Google"}}, {"ORTH": "Now"}]],
+                "Java": [[{"LOWER": {"FUZZY": "java"}}]],
+            },
+            [(2, 4), (5, 6), (8, 9)],
+        ),
+        # only the second pattern matches (check that predicate keys used for
+        # caching don't collide)
+        (
+            {
+                "A": [[{"ORTH": {"FUZZY": "Javascripts"}}]],
+                "B": [[{"ORTH": {"FUZZY5": "Javascripts"}}]],
+            },
+            [(8, 9)],
+        ),
+    ],
+)
+def test_matcher_match_fuzzy(en_vocab, rules, match_locs):
+    words = ["They", "like", "Goggle", "Now", "and", "Jav", "but", "not", "JvvaScrpt"]
+    doc = Doc(en_vocab, words=words)
+
+    matcher = Matcher(en_vocab)
+    for key, patterns in rules.items():
+        matcher.add(key, patterns)
+    assert match_locs == [(start, end) for m_id, start, end in matcher(doc)]
+
+
+@pytest.mark.parametrize("set_op", ["IN", "NOT_IN"])
+def test_matcher_match_fuzzy_set_op_longest(en_vocab, set_op):
+    rules = {
+        "GoogleNow": [[{"ORTH": {"FUZZY": {set_op: ["Google", "Now"]}}, "OP": "+"}]]
+    }
+    matcher = Matcher(en_vocab)
+    for key, patterns in rules.items():
+        matcher.add(key, patterns, greedy="LONGEST")
+
+    words = ["They", "like", "Goggle", "Noo"]
+    doc = Doc(en_vocab, words=words)
+    assert len(matcher(doc)) == 1
+
+
+def test_matcher_match_fuzzy_set_multiple(en_vocab):
+    rules = {
+        "GoogleNow": [
+            [
+                {
+                    "ORTH": {"FUZZY": {"IN": ["Google", "Now"]}, "NOT_IN": ["Goggle"]},
+                    "OP": "+",
+                }
+            ]
+        ]
+    }
+    matcher = Matcher(en_vocab)
+    for key, patterns in rules.items():
+        matcher.add(key, patterns, greedy="LONGEST")
+
+    words = ["They", "like", "Goggle", "Noo"]
+    doc = Doc(matcher.vocab, words=words)
+    assert matcher(doc) == [
+        (doc.vocab.strings["GoogleNow"], 3, 4),
+    ]
+
+
+@pytest.mark.parametrize("fuzzyn", range(1, 10))
+def test_matcher_match_fuzzyn_all_insertions(en_vocab, fuzzyn):
+    matcher = Matcher(en_vocab)
+    matcher.add("GoogleNow", [[{"ORTH": {f"FUZZY{fuzzyn}": "GoogleNow"}}]])
+    # words with increasing edit distance
+    words = ["GoogleNow" + "a" * i for i in range(0, 10)]
+    doc = Doc(en_vocab, words)
+    assert len(matcher(doc)) == fuzzyn + 1
+
+
+@pytest.mark.parametrize("fuzzyn", range(1, 6))
+def test_matcher_match_fuzzyn_various_edits(en_vocab, fuzzyn):
+    matcher = Matcher(en_vocab)
+    matcher.add("GoogleNow", [[{"ORTH": {f"FUZZY{fuzzyn}": "GoogleNow"}}]])
+    # words with increasing edit distance of different edit types
+    words = [
+        "GoogleNow",
+        "GoogleNuw",
+        "GoogleNuew",
+        "GoogleNoweee",
+        "GiggleNuw3",
+        "gouggle5New",
+    ]
+    doc = Doc(en_vocab, words)
+    assert len(matcher(doc)) == fuzzyn + 1
+
+
+@pytest.mark.parametrize("greedy", ["FIRST", "LONGEST"])
+@pytest.mark.parametrize("set_op", ["IN", "NOT_IN"])
+def test_matcher_match_fuzzyn_set_op_longest(en_vocab, greedy, set_op):
+    rules = {
+        "GoogleNow": [[{"ORTH": {"FUZZY2": {set_op: ["Google", "Now"]}}, "OP": "+"}]]
+    }
+    matcher = Matcher(en_vocab)
+    for key, patterns in rules.items():
+        matcher.add(key, patterns, greedy=greedy)
+
+    words = ["They", "like", "Goggle", "Noo"]
+    doc = Doc(matcher.vocab, words=words)
+    spans = matcher(doc, as_spans=True)
+    assert len(spans) == 1
+    if set_op == "IN":
+        assert spans[0].text == "Goggle Noo"
+    else:
+        assert spans[0].text == "They like"
+
+
+def test_matcher_match_fuzzyn_set_multiple(en_vocab):
+    rules = {
+        "GoogleNow": [
+            [
+                {
+                    "ORTH": {"FUZZY1": {"IN": ["Google", "Now"]}, "NOT_IN": ["Goggle"]},
+                    "OP": "+",
+                }
+            ]
+        ]
+    }
+    matcher = Matcher(en_vocab)
+    for key, patterns in rules.items():
+        matcher.add(key, patterns, greedy="LONGEST")
+
+    words = ["They", "like", "Goggle", "Noo"]
+    doc = Doc(matcher.vocab, words=words)
+    assert matcher(doc) == [
+        (doc.vocab.strings["GoogleNow"], 3, 4),
     ]
 
 
@@ -180,11 +327,11 @@ def test_matcher_match_zero_plus(matcher):
 
 def test_matcher_match_one_plus(matcher):
     control = Matcher(matcher.vocab)
-    control.add("BasicPhilippe", None, [{"ORTH": "Philippe"}])
+    control.add("BasicPhilippe", [[{"ORTH": "Philippe"}]])
     doc = Doc(control.vocab, words=["Philippe", "Philippe"])
     m = control(doc)
     assert len(m) == 2
-    pattern = [{"ORTH": "Philippe", "OP": "1"}, {"ORTH": "Philippe", "OP": "+"}]
+    pattern = [{"ORTH": "Philippe"}, {"ORTH": "Philippe", "OP": "+"}]
     matcher.add("KleenePhilippe", [pattern])
     m = matcher(doc)
     assert len(m) == 1
@@ -241,6 +388,192 @@ def test_matcher_set_value_operator(en_vocab):
     assert len(matches) == 1
 
 
+def test_matcher_subset_value_operator(en_vocab):
+    matcher = Matcher(en_vocab)
+    pattern = [{"MORPH": {"IS_SUBSET": ["Feat=Val", "Feat2=Val2"]}}]
+    matcher.add("M", [pattern])
+    doc = Doc(en_vocab, words=["a", "b", "c"])
+    assert len(matcher(doc)) == 3
+    doc[0].set_morph("Feat=Val")
+    assert len(matcher(doc)) == 3
+    doc[0].set_morph("Feat=Val|Feat2=Val2")
+    assert len(matcher(doc)) == 3
+    doc[0].set_morph("Feat=Val|Feat2=Val2|Feat3=Val3")
+    assert len(matcher(doc)) == 2
+    doc[0].set_morph("Feat=Val|Feat2=Val2|Feat3=Val3|Feat4=Val4")
+    assert len(matcher(doc)) == 2
+
+    # IS_SUBSET acts like "IN" for attrs other than MORPH
+    matcher = Matcher(en_vocab)
+    pattern = [{"TAG": {"IS_SUBSET": ["A", "B"]}}]
+    matcher.add("M", [pattern])
+    doc = Doc(en_vocab, words=["a", "b", "c"])
+    doc[0].tag_ = "A"
+    assert len(matcher(doc)) == 1
+
+    # IS_SUBSET with an empty list matches nothing
+    matcher = Matcher(en_vocab)
+    pattern = [{"TAG": {"IS_SUBSET": []}}]
+    matcher.add("M", [pattern])
+    doc = Doc(en_vocab, words=["a", "b", "c"])
+    doc[0].tag_ = "A"
+    assert len(matcher(doc)) == 0
+
+    # IS_SUBSET with a list value
+    Token.set_extension("ext", default=[])
+    matcher = Matcher(en_vocab)
+    pattern = [{"_": {"ext": {"IS_SUBSET": ["A", "B"]}}}]
+    matcher.add("M", [pattern])
+    doc = Doc(en_vocab, words=["a", "b", "c"])
+    doc[0]._.ext = ["A"]
+    doc[1]._.ext = ["C", "D"]
+    assert len(matcher(doc)) == 2
+
+
+def test_matcher_superset_value_operator(en_vocab):
+    matcher = Matcher(en_vocab)
+    pattern = [{"MORPH": {"IS_SUPERSET": ["Feat=Val", "Feat2=Val2", "Feat3=Val3"]}}]
+    matcher.add("M", [pattern])
+    doc = Doc(en_vocab, words=["a", "b", "c"])
+    assert len(matcher(doc)) == 0
+    doc[0].set_morph("Feat=Val|Feat2=Val2")
+    assert len(matcher(doc)) == 0
+    doc[0].set_morph("Feat=Val|Feat2=Val2|Feat3=Val3")
+    assert len(matcher(doc)) == 1
+    doc[0].set_morph("Feat=Val|Feat2=Val2|Feat3=Val3|Feat4=Val4")
+    assert len(matcher(doc)) == 1
+
+    # IS_SUPERSET with more than one value only matches for MORPH
+    matcher = Matcher(en_vocab)
+    pattern = [{"TAG": {"IS_SUPERSET": ["A", "B"]}}]
+    matcher.add("M", [pattern])
+    doc = Doc(en_vocab, words=["a", "b", "c"])
+    doc[0].tag_ = "A"
+    assert len(matcher(doc)) == 0
+
+    # IS_SUPERSET with one value is the same as ==
+    matcher = Matcher(en_vocab)
+    pattern = [{"TAG": {"IS_SUPERSET": ["A"]}}]
+    matcher.add("M", [pattern])
+    doc = Doc(en_vocab, words=["a", "b", "c"])
+    doc[0].tag_ = "A"
+    assert len(matcher(doc)) == 1
+
+    # IS_SUPERSET with an empty value matches everything
+    matcher = Matcher(en_vocab)
+    pattern = [{"TAG": {"IS_SUPERSET": []}}]
+    matcher.add("M", [pattern])
+    doc = Doc(en_vocab, words=["a", "b", "c"])
+    doc[0].tag_ = "A"
+    assert len(matcher(doc)) == 3
+
+    # IS_SUPERSET with a list value
+    Token.set_extension("ext", default=[])
+    matcher = Matcher(en_vocab)
+    pattern = [{"_": {"ext": {"IS_SUPERSET": ["A"]}}}]
+    matcher.add("M", [pattern])
+    doc = Doc(en_vocab, words=["a", "b", "c"])
+    doc[0]._.ext = ["A", "B"]
+    assert len(matcher(doc)) == 1
+
+
+def test_matcher_intersect_value_operator(en_vocab):
+    matcher = Matcher(en_vocab)
+    pattern = [{"MORPH": {"INTERSECTS": ["Feat=Val", "Feat2=Val2", "Feat3=Val3"]}}]
+    matcher.add("M", [pattern])
+    doc = Doc(en_vocab, words=["a", "b", "c"])
+    assert len(matcher(doc)) == 0
+    doc[0].set_morph("Feat=Val")
+    assert len(matcher(doc)) == 1
+    doc[0].set_morph("Feat=Val|Feat2=Val2")
+    assert len(matcher(doc)) == 1
+    doc[0].set_morph("Feat=Val|Feat2=Val2|Feat3=Val3")
+    assert len(matcher(doc)) == 1
+    doc[0].set_morph("Feat=Val|Feat2=Val2|Feat3=Val3|Feat4=Val4")
+    assert len(matcher(doc)) == 1
+
+    # INTERSECTS with a single value is the same as IN
+    matcher = Matcher(en_vocab)
+    pattern = [{"TAG": {"INTERSECTS": ["A", "B"]}}]
+    matcher.add("M", [pattern])
+    doc = Doc(en_vocab, words=["a", "b", "c"])
+    doc[0].tag_ = "A"
+    assert len(matcher(doc)) == 1
+
+    # INTERSECTS with an empty pattern list matches nothing
+    matcher = Matcher(en_vocab)
+    pattern = [{"TAG": {"INTERSECTS": []}}]
+    matcher.add("M", [pattern])
+    doc = Doc(en_vocab, words=["a", "b", "c"])
+    doc[0].tag_ = "A"
+    assert len(matcher(doc)) == 0
+
+    # INTERSECTS with a list value
+    Token.set_extension("ext", default=[])
+    matcher = Matcher(en_vocab)
+    pattern = [{"_": {"ext": {"INTERSECTS": ["A", "C"]}}}]
+    matcher.add("M", [pattern])
+    doc = Doc(en_vocab, words=["a", "b", "c"])
+    doc[0]._.ext = ["A", "B"]
+    assert len(matcher(doc)) == 1
+
+    # INTERSECTS matches nothing for iterables that aren't all str or int
+    matcher = Matcher(en_vocab)
+    pattern = [{"_": {"ext": {"INTERSECTS": ["Abx", "C"]}}}]
+    matcher.add("M", [pattern])
+    doc = Doc(en_vocab, words=["a", "b", "c"])
+    doc[0]._.ext = [["Abx"], "B"]
+    assert len(matcher(doc)) == 0
+    doc[0]._.ext = ["Abx", "B"]
+    assert len(matcher(doc)) == 1
+
+    # INTERSECTS with an empty pattern list matches nothing
+    matcher = Matcher(en_vocab)
+    pattern = [{"_": {"ext": {"INTERSECTS": []}}}]
+    matcher.add("M", [pattern])
+    doc = Doc(en_vocab, words=["a", "b", "c"])
+    doc[0]._.ext = ["A", "B"]
+    assert len(matcher(doc)) == 0
+
+    # INTERSECTS with an empty value matches nothing
+    matcher = Matcher(en_vocab)
+    pattern = [{"_": {"ext": {"INTERSECTS": ["A", "B"]}}}]
+    matcher.add("M", [pattern])
+    doc = Doc(en_vocab, words=["a", "b", "c"])
+    doc[0]._.ext = []
+    assert len(matcher(doc)) == 0
+
+
+def test_matcher_morph_handling(en_vocab):
+    # order of features in pattern doesn't matter
+    matcher = Matcher(en_vocab)
+    pattern1 = [{"MORPH": {"IN": ["Feat1=Val1|Feat2=Val2"]}}]
+    pattern2 = [{"MORPH": {"IN": ["Feat2=Val2|Feat1=Val1"]}}]
+    matcher.add("M", [pattern1])
+    matcher.add("N", [pattern2])
+    doc = Doc(en_vocab, words=["a", "b", "c"])
+    assert len(matcher(doc)) == 0
+
+    doc[0].set_morph("Feat2=Val2|Feat1=Val1")
+    assert len(matcher(doc)) == 2
+    doc[0].set_morph("Feat1=Val1|Feat2=Val2")
+    assert len(matcher(doc)) == 2
+
+    # multiple values are split
+    matcher = Matcher(en_vocab)
+    pattern1 = [{"MORPH": {"IS_SUPERSET": ["Feat1=Val1", "Feat2=Val2"]}}]
+    pattern2 = [{"MORPH": {"IS_SUPERSET": ["Feat1=Val1", "Feat1=Val3", "Feat2=Val2"]}}]
+    matcher.add("M", [pattern1])
+    matcher.add("N", [pattern2])
+    doc = Doc(en_vocab, words=["a", "b", "c"])
+    assert len(matcher(doc)) == 0
+
+    doc[0].set_morph("Feat2=Val2,Val3|Feat1=Val1")
+    assert len(matcher(doc)) == 1
+    doc[0].set_morph("Feat1=Val1,Val3|Feat2=Val2")
+    assert len(matcher(doc)) == 2
+
+
 def test_matcher_regex(en_vocab):
     matcher = Matcher(en_vocab)
     pattern = [{"ORTH": {"REGEX": r"(?:a|an)"}}]
@@ -251,6 +584,30 @@ def test_matcher_regex(en_vocab):
     doc = Doc(en_vocab, words=["bye"])
     matches = matcher(doc)
     assert len(matches) == 0
+
+
+def test_matcher_regex_set_in(en_vocab):
+    matcher = Matcher(en_vocab)
+    pattern = [{"ORTH": {"REGEX": {"IN": [r"(?:a)", r"(?:an)"]}}}]
+    matcher.add("A_OR_AN", [pattern])
+    doc = Doc(en_vocab, words=["an", "a", "hi"])
+    matches = matcher(doc)
+    assert len(matches) == 2
+    doc = Doc(en_vocab, words=["bye"])
+    matches = matcher(doc)
+    assert len(matches) == 0
+
+
+def test_matcher_regex_set_not_in(en_vocab):
+    matcher = Matcher(en_vocab)
+    pattern = [{"ORTH": {"REGEX": {"NOT_IN": [r"(?:a)", r"(?:an)"]}}}]
+    matcher.add("A_OR_AN", [pattern])
+    doc = Doc(en_vocab, words=["an", "a", "hi"])
+    matches = matcher(doc)
+    assert len(matches) == 1
+    doc = Doc(en_vocab, words=["bye"])
+    matches = matcher(doc)
+    assert len(matches) == 1
 
 
 def test_matcher_regex_shape(en_vocab):
@@ -302,82 +659,23 @@ def test_matcher_extension_set_membership(en_vocab):
     assert len(matches) == 0
 
 
-def dependency_matcher(en_vocab):
-    def is_brown_yellow(text):
-        return bool(re.compile(r"brown|yellow|over").match(text))
+def test_matcher_extension_in_set_predicate(en_vocab):
+    matcher = Matcher(en_vocab)
+    Token.set_extension("ext", default=[])
+    pattern = [{"_": {"ext": {"IN": ["A", "C"]}}}]
+    matcher.add("M", [pattern])
+    doc = Doc(en_vocab, words=["a", "b", "c"])
 
-    IS_BROWN_YELLOW = en_vocab.add_flag(is_brown_yellow)
+    # The IN predicate expects an exact match between the
+    # extension value and one of the pattern's values.
+    doc[0]._.ext = ["A", "B"]
+    assert len(matcher(doc)) == 0
 
-    pattern1 = [
-        {"SPEC": {"NODE_NAME": "fox"}, "PATTERN": {"ORTH": "fox"}},
-        {
-            "SPEC": {"NODE_NAME": "q", "NBOR_RELOP": ">", "NBOR_NAME": "fox"},
-            "PATTERN": {"ORTH": "quick", "DEP": "amod"},
-        },
-        {
-            "SPEC": {"NODE_NAME": "r", "NBOR_RELOP": ">", "NBOR_NAME": "fox"},
-            "PATTERN": {IS_BROWN_YELLOW: True},
-        },
-    ]
+    doc[0]._.ext = ["A"]
+    assert len(matcher(doc)) == 0
 
-    pattern2 = [
-        {"SPEC": {"NODE_NAME": "jumped"}, "PATTERN": {"ORTH": "jumped"}},
-        {
-            "SPEC": {"NODE_NAME": "fox", "NBOR_RELOP": ">", "NBOR_NAME": "jumped"},
-            "PATTERN": {"ORTH": "fox"},
-        },
-        {
-            "SPEC": {"NODE_NAME": "quick", "NBOR_RELOP": ".", "NBOR_NAME": "jumped"},
-            "PATTERN": {"ORTH": "fox"},
-        },
-    ]
-
-    pattern3 = [
-        {"SPEC": {"NODE_NAME": "jumped"}, "PATTERN": {"ORTH": "jumped"}},
-        {
-            "SPEC": {"NODE_NAME": "fox", "NBOR_RELOP": ">", "NBOR_NAME": "jumped"},
-            "PATTERN": {"ORTH": "fox"},
-        },
-        {
-            "SPEC": {"NODE_NAME": "r", "NBOR_RELOP": ">>", "NBOR_NAME": "fox"},
-            "PATTERN": {"ORTH": "brown"},
-        },
-    ]
-
-    # pattern that doesn't match
-    pattern4 = [
-        {"SPEC": {"NODE_NAME": "jumped"}, "PATTERN": {"ORTH": "NOMATCH"}},
-        {
-            "SPEC": {"NODE_NAME": "fox", "NBOR_RELOP": ">", "NBOR_NAME": "jumped"},
-            "PATTERN": {"ORTH": "fox"},
-        },
-        {
-            "SPEC": {"NODE_NAME": "r", "NBOR_RELOP": ">>", "NBOR_NAME": "fox"},
-            "PATTERN": {"ORTH": "brown"},
-        },
-    ]
-
-    matcher = DependencyMatcher(en_vocab)
-    on_match = Mock()
-    matcher.add("pattern1", [pattern1], on_match=on_match)
-    matcher.add("pattern2", [pattern2], on_match=on_match)
-    matcher.add("pattern3", [pattern3], on_match=on_match)
-    matcher.add("pattern4", [pattern4], on_match=on_match)
-
-    assert len(dependency_matcher) == 4
-
-    text = "The quick brown fox jumped over the lazy fox"
-    heads = [3, 2, 1, 1, 0, -1, 2, 1, -3]
-    deps = ["det", "amod", "amod", "nsubj", "ROOT", "prep", "pobj", "det", "amod"]
-
-    doc = get_doc(dependency_matcher.vocab, text.split(), heads=heads, deps=deps)
-    matches = dependency_matcher(doc)
-
-    assert len(matches) == 3
-    assert matches[0][1] == [[3, 1, 2]]
-    assert matches[1][1] == [[4, 3, 3]]
-    assert matches[2][1] == [[4, 3, 2]]
-    assert on_match.call_count == 3
+    doc[0]._.ext = "A"
+    assert len(matcher(doc)) == 1
 
 
 def test_matcher_basic_check(en_vocab):
@@ -390,11 +688,14 @@ def test_matcher_basic_check(en_vocab):
 
 def test_attr_pipeline_checks(en_vocab):
     doc1 = Doc(en_vocab, words=["Test"])
-    doc1.is_parsed = True
+    doc1[0].dep_ = "ROOT"
     doc2 = Doc(en_vocab, words=["Test"])
-    doc2.is_tagged = True
+    doc2[0].tag_ = "TAG"
+    doc2[0].pos_ = "X"
+    doc2[0].set_morph("Feat=Val")
+    doc2[0].lemma_ = "LEMMA"
     doc3 = Doc(en_vocab, words=["Test"])
-    # DEP requires is_parsed
+    # DEP requires DEP
     matcher = Matcher(en_vocab)
     matcher.add("TEST", [[{"DEP": "a"}]])
     matcher(doc1)
@@ -402,7 +703,10 @@ def test_attr_pipeline_checks(en_vocab):
         matcher(doc2)
     with pytest.raises(ValueError):
         matcher(doc3)
-    # TAG, POS, LEMMA require is_tagged
+    # errors can be suppressed if desired
+    matcher(doc2, allow_missing=True)
+    matcher(doc3, allow_missing=True)
+    # TAG, POS, LEMMA require those values
     for attr in ("TAG", "POS", "LEMMA"):
         matcher = Matcher(en_vocab)
         matcher.add("TEST", [[{attr: "a"}]])
@@ -455,6 +759,7 @@ def test_matcher_schema_token_attributes(en_vocab, pattern, text):
     assert len(matches) == 1
 
 
+@pytest.mark.filterwarnings("ignore:\\[W036")
 def test_matcher_valid_callback(en_vocab):
     """Test that on_match can only be None or callable."""
     matcher = Matcher(en_vocab)
@@ -473,6 +778,16 @@ def test_matcher_callback(en_vocab):
     mock.assert_called_once_with(matcher, doc, 0, matches)
 
 
+def test_matcher_callback_with_alignments(en_vocab):
+    mock = Mock()
+    matcher = Matcher(en_vocab)
+    pattern = [{"ORTH": "test"}]
+    matcher.add("Rule", [pattern], on_match=mock)
+    doc = Doc(en_vocab, words=["This", "is", "a", "test", "."])
+    matches = matcher(doc, with_alignments=True)
+    mock.assert_called_once_with(matcher, doc, 0, matches)
+
+
 def test_matcher_span(matcher):
     text = "JavaScript is good but Java is better"
     doc = Doc(matcher.vocab, words=text.split())
@@ -481,6 +796,35 @@ def test_matcher_span(matcher):
     assert len(matcher(doc)) == 2
     assert len(matcher(span_js)) == 1
     assert len(matcher(span_java)) == 1
+
+
+def test_matcher_as_spans(matcher):
+    """Test the new as_spans=True API."""
+    text = "JavaScript is good but Java is better"
+    doc = Doc(matcher.vocab, words=text.split())
+    matches = matcher(doc, as_spans=True)
+    assert len(matches) == 2
+    assert isinstance(matches[0], Span)
+    assert matches[0].text == "JavaScript"
+    assert matches[0].label_ == "JS"
+    assert isinstance(matches[1], Span)
+    assert matches[1].text == "Java"
+    assert matches[1].label_ == "Java"
+
+    matches = matcher(doc[1:], as_spans=True)
+    assert len(matches) == 1
+    assert isinstance(matches[0], Span)
+    assert matches[0].text == "Java"
+    assert matches[0].label_ == "Java"
+
+
+def test_matcher_deprecated(matcher):
+    doc = Doc(matcher.vocab, words=["hello", "world"])
+    with pytest.warns(DeprecationWarning) as record:
+        for _ in matcher.pipe([doc]):
+            pass
+        assert record.list
+        assert "spaCy v3.0" in str(record.list[0].message)
 
 
 def test_matcher_remove_zero_operator(en_vocab):
@@ -493,3 +837,72 @@ def test_matcher_remove_zero_operator(en_vocab):
     assert "Rule" in matcher
     matcher.remove("Rule")
     assert "Rule" not in matcher
+
+
+def test_matcher_no_zero_length(en_vocab):
+    doc = Doc(en_vocab, words=["a", "b"], tags=["A", "B"])
+    matcher = Matcher(en_vocab)
+    matcher.add("TEST", [[{"TAG": "C", "OP": "?"}]])
+    assert len(matcher(doc)) == 0
+
+
+def test_matcher_ent_iob_key(en_vocab):
+    """Test that patterns with ent_iob works correctly."""
+    matcher = Matcher(en_vocab)
+    matcher.add("Rule", [[{"ENT_IOB": "I"}]])
+    doc1 = Doc(en_vocab, words=["I", "visited", "New", "York", "and", "California"])
+    doc1.ents = [Span(doc1, 2, 4, label="GPE"), Span(doc1, 5, 6, label="GPE")]
+    doc2 = Doc(en_vocab, words=["I", "visited", "my", "friend", "Alicia"])
+    doc2.ents = [Span(doc2, 4, 5, label="PERSON")]
+    matches1 = [doc1[start:end].text for _, start, end in matcher(doc1)]
+    matches2 = [doc2[start:end].text for _, start, end in matcher(doc2)]
+    assert len(matches1) == 1
+    assert matches1[0] == "York"
+    assert len(matches2) == 0
+
+    matcher = Matcher(en_vocab)  # Test iob pattern with operators
+    matcher.add("Rule", [[{"ENT_IOB": "I", "OP": "+"}]])
+    doc = Doc(
+        en_vocab, words=["I", "visited", "my", "friend", "Anna", "Maria", "Esperanza"]
+    )
+    doc.ents = [Span(doc, 4, 7, label="PERSON")]
+    matches = [doc[start:end].text for _, start, end in matcher(doc)]
+    assert len(matches) == 3
+    assert matches[0] == "Maria"
+    assert matches[1] == "Maria Esperanza"
+    assert matches[2] == "Esperanza"
+
+
+def test_matcher_min_max_operator(en_vocab):
+    # Exactly n matches {n}
+    doc = Doc(
+        en_vocab,
+        words=["foo", "bar", "foo", "foo", "bar", "foo", "foo", "foo", "bar", "bar"],
+    )
+    matcher = Matcher(en_vocab)
+    pattern = [{"ORTH": "foo", "OP": "{3}"}]
+    matcher.add("TEST", [pattern])
+
+    matches1 = [doc[start:end].text for _, start, end in matcher(doc)]
+    assert len(matches1) == 1
+
+    # At least n matches {n,}
+    matcher = Matcher(en_vocab)
+    pattern = [{"ORTH": "foo", "OP": "{2,}"}]
+    matcher.add("TEST", [pattern])
+    matches2 = [doc[start:end].text for _, start, end in matcher(doc)]
+    assert len(matches2) == 4
+
+    # At most m matches {,m}
+    matcher = Matcher(en_vocab)
+    pattern = [{"ORTH": "foo", "OP": "{,2}"}]
+    matcher.add("TEST", [pattern])
+    matches3 = [doc[start:end].text for _, start, end in matcher(doc)]
+    assert len(matches3) == 9
+
+    # At least n matches and most m matches {n,m}
+    matcher = Matcher(en_vocab)
+    pattern = [{"ORTH": "foo", "OP": "{2,3}"}]
+    matcher.add("TEST", [pattern])
+    matches4 = [doc[start:end].text for _, start, end in matcher(doc)]
+    assert len(matches4) == 4

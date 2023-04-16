@@ -1,13 +1,7 @@
-# -*- coding: utf-8 -*-
-# Copyright (c) 2016-2019 Claudiu Popa <pcmanticore@gmail.com>
-# Copyright (c) 2016 Derek Gustafson <degustaf@gmail.com>
-# Copyright (c) 2017-2018 Bryce Guinta <bryce.paul.guinta@gmail.com>
-# Copyright (c) 2017 Ceridwen <ceridwenv@gmail.com>
-# Copyright (c) 2017 Calen Pennington <cale@edx.org>
-# Copyright (c) 2018 Ville Skyttä <ville.skytta@iki.fi>
-# Copyright (c) 2018 Nick Drozd <nicholasdrozd@gmail.com>
 # Licensed under the LGPL: https://www.gnu.org/licenses/old-licenses/lgpl-2.1.en.html
-# For details: https://github.com/PyCQA/astroid/blob/master/COPYING.LESSER
+# For details: https://github.com/PyCQA/astroid/blob/main/LICENSE
+# Copyright (c) https://github.com/PyCQA/astroid/blob/main/CONTRIBUTORS.txt
+
 """
 Data object model, as per https://docs.python.org/3/reference/datamodel.html.
 
@@ -27,19 +21,37 @@ attribute. Thus the model can be viewed as a special part of the lookup
 mechanism.
 """
 
+from __future__ import annotations
+
 import itertools
-import pprint
 import os
+import pprint
+import sys
 import types
 from functools import lru_cache
+from typing import TYPE_CHECKING, Any
 
 import astroid
-from astroid import context as contextmod
-from astroid import exceptions
-from astroid import node_classes
+from astroid import bases, nodes, util
+from astroid.context import InferenceContext, copy_context
+from astroid.exceptions import AttributeInferenceError, InferenceError, NoDefault
+from astroid.manager import AstroidManager
+from astroid.nodes import node_classes
 
+objects = util.lazy_import("objects")
+builder = util.lazy_import("builder")
+
+if sys.version_info >= (3, 8):
+    from typing import Literal
+else:
+    from typing_extensions import Literal
+
+if TYPE_CHECKING:
+    from astroid import builder
+    from astroid.objects import Property
 
 IMPL_PREFIX = "attr_"
+LEN_OF_IMPL_PREFIX = len(IMPL_PREFIX)
 
 
 def _dunder_dict(instance, attributes):
@@ -57,6 +69,14 @@ def _dunder_dict(instance, attributes):
 
     obj.postinit(list(zip(keys, values)))
     return obj
+
+
+def _get_bound_node(model: ObjectModel) -> Any:
+    # TODO: Use isinstance instead of try ... except after _instance has typing
+    try:
+        return model._instance._proxied
+    except AttributeError:
+        return model._instance
 
 
 class ObjectModel:
@@ -96,31 +116,55 @@ class ObjectModel:
         # underlying data model and to the instance for which it got accessed.
         return self(instance)
 
-    def __contains__(self, name):
+    def __contains__(self, name) -> bool:
         return name in self.attributes()
 
-    @lru_cache(maxsize=None)
-    def attributes(self):
+    @lru_cache()  # noqa
+    def attributes(self) -> list[str]:
         """Get the attributes which are exported by this object model."""
-        return [
-            obj[len(IMPL_PREFIX) :] for obj in dir(self) if obj.startswith(IMPL_PREFIX)
-        ]
+        return [o[LEN_OF_IMPL_PREFIX:] for o in dir(self) if o.startswith(IMPL_PREFIX)]
 
     def lookup(self, name):
-        """Look up the given *name* in the current model
+        """Look up the given *name* in the current model.
 
         It should return an AST or an interpreter object,
         but if the name is not found, then an AttributeInferenceError will be raised.
         """
-
         if name in self.attributes():
             return getattr(self, IMPL_PREFIX + name)
-        raise exceptions.AttributeInferenceError(target=self._instance, attribute=name)
+        raise AttributeInferenceError(target=self._instance, attribute=name)
+
+    @property
+    def attr___new__(self) -> bases.BoundMethod:
+        """Calling cls.__new__(type) on an object returns an instance of 'type'."""
+        node: nodes.FunctionDef = builder.extract_node(
+            """def __new__(self, cls): return cls()"""
+        )
+        # We set the parent as being the ClassDef of 'object' as that
+        # triggers correct inference as a call to __new__ in bases.py
+        node.parent = AstroidManager().builtins_module["object"]
+
+        return bases.BoundMethod(proxy=node, bound=_get_bound_node(self))
+
+    @property
+    def attr___init__(self) -> bases.BoundMethod:
+        """Calling cls.__init__() normally returns None."""
+        # The *args and **kwargs are necessary not to trigger warnings about missing
+        # or extra parameters for '__init__' methods we don't infer correctly.
+        # This BoundMethod is the fallback value for those.
+        node: nodes.FunctionDef = builder.extract_node(
+            """def __init__(self, *args, **kwargs): return None"""
+        )
+        # We set the parent as being the ClassDef of 'object' as that
+        # is where this method originally comes from
+        node.parent = AstroidManager().builtins_module["object"]
+
+        return bases.BoundMethod(proxy=node, bound=_get_bound_node(self))
 
 
 class ModuleModel(ObjectModel):
     def _builtins(self):
-        builtins_ast_module = astroid.MANAGER.builtins_module
+        builtins_ast_module = AstroidManager().builtins_module
         return builtins_ast_module.special_attributes.lookup("__dict__")
 
     @property
@@ -130,9 +174,7 @@ class ModuleModel(ObjectModel):
     @property
     def attr___path__(self):
         if not self._instance.package:
-            raise exceptions.AttributeInferenceError(
-                target=self._instance, attribute="__path__"
-            )
+            raise AttributeInferenceError(target=self._instance, attribute="__path__")
 
         path_objs = [
             node_classes.Const(
@@ -155,7 +197,10 @@ class ModuleModel(ObjectModel):
 
     @property
     def attr___doc__(self):
-        return node_classes.Const(value=self._instance.doc, parent=self._instance)
+        return node_classes.Const(
+            value=getattr(self._instance.doc_node, "value", None),
+            parent=self._instance,
+        )
 
     @property
     def attr___file__(self):
@@ -201,7 +246,10 @@ class FunctionModel(ObjectModel):
 
     @property
     def attr___doc__(self):
-        return node_classes.Const(value=self._instance.doc, parent=self._instance)
+        return node_classes.Const(
+            value=getattr(self._instance.doc_node, "value", None),
+            parent=self._instance,
+        )
 
     @property
     def attr___qualname__(self):
@@ -263,7 +311,7 @@ class FunctionModel(ObjectModel):
             for arg in args.kwonlyargs:
                 try:
                     default = args.default_value(arg.name)
-                except exceptions.NoDefault:
+                except NoDefault:
                     continue
 
                 name = node_classes.Const(arg.name, parent=parent)
@@ -282,32 +330,36 @@ class FunctionModel(ObjectModel):
 
     @property
     def attr___get__(self):
-        # pylint: disable=import-outside-toplevel; circular import
-        from astroid import bases
-
         func = self._instance
 
         class DescriptorBoundMethod(bases.BoundMethod):
-            """Bound method which knows how to understand calling descriptor binding."""
+            """Bound method which knows how to understand calling descriptor
+            binding.
+            """
 
-            def implicit_parameters(self):
+            def implicit_parameters(self) -> Literal[0]:
                 # Different than BoundMethod since the signature
                 # is different.
                 return 0
 
-            def infer_call_result(self, caller, context=None):
+            def infer_call_result(
+                self, caller, context: InferenceContext | None = None
+            ):
                 if len(caller.args) > 2 or len(caller.args) < 1:
-                    raise exceptions.InferenceError(
+                    raise InferenceError(
                         "Invalid arguments for descriptor binding",
                         target=self,
                         context=context,
                     )
 
-                context = contextmod.copy_context(context)
-                cls = next(caller.args[0].infer(context=context))
+                context = copy_context(context)
+                try:
+                    cls = next(caller.args[0].infer(context=context))
+                except StopIteration as e:
+                    raise InferenceError(context=context, node=caller.args[0]) from e
 
-                if cls is astroid.Uninferable:
-                    raise exceptions.InferenceError(
+                if isinstance(cls, util.UninferableBase):
+                    raise InferenceError(
                         "Invalid class inferred", target=self, context=context
                     )
 
@@ -321,12 +373,18 @@ class FunctionModel(ObjectModel):
                 # class where it will be bound.
                 new_func = func.__class__(
                     name=func.name,
-                    doc=func.doc,
                     lineno=func.lineno,
                     col_offset=func.col_offset,
+                    parent=func.parent,
                 )
                 # pylint: disable=no-member
-                new_func.postinit(func.args, func.body, func.decorators, func.returns)
+                new_func.postinit(
+                    func.args,
+                    func.body,
+                    func.decorators,
+                    func.returns,
+                    doc_node=func.doc_node,
+                )
 
                 # Build a proper bound method that points to our newly built function.
                 proxy = bases.UnboundMethod(new_func)
@@ -334,7 +392,7 @@ class FunctionModel(ObjectModel):
 
             @property
             def args(self):
-                """Overwrite the underlying args to match those of the underlying func
+                """Overwrite the underlying args to match those of the underlying func.
 
                 Usually the underlying *func* is a function/method, as in:
 
@@ -375,7 +433,6 @@ class FunctionModel(ObjectModel):
     attr___repr__ = attr___ne__
     attr___reduce__ = attr___ne__
     attr___reduce_ex__ = attr___ne__
-    attr___new__ = attr___ne__
     attr___lt__ = attr___ne__
     attr___eq__ = attr___ne__
     attr___gt__ = attr___ne__
@@ -383,7 +440,6 @@ class FunctionModel(ObjectModel):
     attr___delattr___ = attr___ne__
     attr___getattribute__ = attr___ne__
     attr___hash__ = attr___ne__
-    attr___init__ = attr___ne__
     attr___dir__ = attr___ne__
     attr___call__ = attr___ne__
     attr___class__ = attr___ne__
@@ -392,6 +448,12 @@ class FunctionModel(ObjectModel):
 
 
 class ClassModel(ObjectModel):
+    def __init__(self):
+        # Add a context so that inferences called from an instance don't recurse endlessly
+        self.context = InferenceContext()
+
+        super().__init__()
+
     @property
     def attr___module__(self):
         return node_classes.Const(self._instance.root().qname())
@@ -406,14 +468,12 @@ class ClassModel(ObjectModel):
 
     @property
     def attr___doc__(self):
-        return node_classes.Const(self._instance.doc)
+        return node_classes.Const(getattr(self._instance.doc_node, "value", None))
 
     @property
     def attr___mro__(self):
         if not self._instance.newstyle:
-            raise exceptions.AttributeInferenceError(
-                target=self._instance, attribute="__mro__"
-            )
+            raise AttributeInferenceError(target=self._instance, attribute="__mro__")
 
         mro = self._instance.mro()
         obj = node_classes.Tuple(parent=self._instance)
@@ -423,19 +483,16 @@ class ClassModel(ObjectModel):
     @property
     def attr_mro(self):
         if not self._instance.newstyle:
-            raise exceptions.AttributeInferenceError(
-                target=self._instance, attribute="mro"
-            )
-
-        # pylint: disable=import-outside-toplevel; circular import
-        from astroid import bases
+            raise AttributeInferenceError(target=self._instance, attribute="mro")
 
         other_self = self
 
         # Cls.mro is a method and we need to return one in order to have a proper inference.
         # The method we're returning is capable of inferring the underlying MRO though.
         class MroBoundMethod(bases.BoundMethod):
-            def infer_call_result(self, caller, context=None):
+            def infer_call_result(
+                self, caller, context: InferenceContext | None = None
+            ):
                 yield other_self.attr___mro__
 
         implicit_metaclass = self._instance.implicit_metaclass()
@@ -445,7 +502,7 @@ class ClassModel(ObjectModel):
     @property
     def attr___bases__(self):
         obj = node_classes.Tuple()
-        context = contextmod.InferenceContext()
+        context = InferenceContext()
         elts = list(self._instance._inferred_bases(context))
         obj.postinit(elts=elts)
         return obj
@@ -459,17 +516,13 @@ class ClassModel(ObjectModel):
 
     @property
     def attr___subclasses__(self):
-        """Get the subclasses of the underlying class
+        """Get the subclasses of the underlying class.
 
         This looks only in the current module for retrieving the subclasses,
         thus it might miss a couple of them.
         """
-        # pylint: disable=import-outside-toplevel; circular import
-        from astroid import bases
-        from astroid import scoped_nodes
-
         if not self._instance.newstyle:
-            raise exceptions.AttributeInferenceError(
+            raise AttributeInferenceError(
                 target=self._instance, attribute="__subclasses__"
             )
 
@@ -477,15 +530,17 @@ class ClassModel(ObjectModel):
         root = self._instance.root()
         classes = [
             cls
-            for cls in root.nodes_of_class(scoped_nodes.ClassDef)
-            if cls != self._instance and cls.is_subtype_of(qname)
+            for cls in root.nodes_of_class(nodes.ClassDef)
+            if cls != self._instance and cls.is_subtype_of(qname, context=self.context)
         ]
 
         obj = node_classes.List(parent=self._instance)
         obj.postinit(classes)
 
         class SubclassesBoundMethod(bases.BoundMethod):
-            def infer_call_result(self, caller, context=None):
+            def infer_call_result(
+                self, caller, context: InferenceContext | None = None
+            ):
                 yield obj
 
         implicit_metaclass = self._instance.implicit_metaclass()
@@ -495,6 +550,11 @@ class ClassModel(ObjectModel):
     @property
     def attr___dict__(self):
         return node_classes.Dict(parent=self._instance)
+
+    @property
+    def attr___call__(self):
+        """Calling a class A() returns an instance of A."""
+        return self._instance.instantiate_class()
 
 
 class SuperModel(ObjectModel):
@@ -536,6 +596,48 @@ class UnboundMethodModel(ObjectModel):
     attr_im_self = attr___self__
 
 
+class ContextManagerModel(ObjectModel):
+    """Model for context managers.
+
+    Based on 3.3.9 of the Data Model documentation:
+    https://docs.python.org/3/reference/datamodel.html#with-statement-context-managers
+    """
+
+    @property
+    def attr___enter__(self) -> bases.BoundMethod:
+        """Representation of the base implementation of __enter__.
+
+        As per Python documentation:
+        Enter the runtime context related to this object. The with statement
+        will bind this method's return value to the target(s) specified in the
+        as clause of the statement, if any.
+        """
+        node: nodes.FunctionDef = builder.extract_node("""def __enter__(self): ...""")
+        # We set the parent as being the ClassDef of 'object' as that
+        # is where this method originally comes from
+        node.parent = AstroidManager().builtins_module["object"]
+
+        return bases.BoundMethod(proxy=node, bound=_get_bound_node(self))
+
+    @property
+    def attr___exit__(self) -> bases.BoundMethod:
+        """Representation of the base implementation of __exit__.
+
+        As per Python documentation:
+        Exit the runtime context related to this object. The parameters describe the
+        exception that caused the context to be exited. If the context was exited
+        without an exception, all three arguments will be None.
+        """
+        node: nodes.FunctionDef = builder.extract_node(
+            """def __exit__(self, exc_type, exc_value, traceback): ..."""
+        )
+        # We set the parent as being the ClassDef of 'object' as that
+        # is where this method originally comes from
+        node.parent = AstroidManager().builtins_module["object"]
+
+        return bases.BoundMethod(proxy=node, bound=_get_bound_node(self))
+
+
 class BoundMethodModel(FunctionModel):
     @property
     def attr___func__(self):
@@ -546,14 +648,16 @@ class BoundMethodModel(FunctionModel):
         return self._instance.bound
 
 
-class GeneratorModel(FunctionModel):
+class GeneratorModel(FunctionModel, ContextManagerModel):
     def __new__(cls, *args, **kwargs):
         # Append the values from the GeneratorType unto this object.
-        ret = super(GeneratorModel, cls).__new__(cls, *args, **kwargs)
-        generator = astroid.MANAGER.builtins_module["generator"]
+        ret = super().__new__(cls, *args, **kwargs)
+        generator = AstroidManager().builtins_module["generator"]
         for name, values in generator.locals.items():
             method = values[0]
-            patched = lambda cls, meth=method: meth
+
+            def patched(cls, meth=method):
+                return meth
 
             setattr(type(ret), IMPL_PREFIX + name, property(patched))
 
@@ -568,7 +672,8 @@ class GeneratorModel(FunctionModel):
     @property
     def attr___doc__(self):
         return node_classes.Const(
-            value=self._instance.parent.doc, parent=self._instance
+            value=getattr(self._instance.parent.doc_node, "value", None),
+            parent=self._instance,
         )
 
 
@@ -576,7 +681,7 @@ class AsyncGeneratorModel(GeneratorModel):
     def __new__(cls, *args, **kwargs):
         # Append the values from the AGeneratorType unto this object.
         ret = super().__new__(cls, *args, **kwargs)
-        astroid_builtins = astroid.MANAGER.builtins_module
+        astroid_builtins = AstroidManager().builtins_module
         generator = astroid_builtins.get("async_generator")
         if generator is None:
             # Make it backward compatible.
@@ -584,7 +689,9 @@ class AsyncGeneratorModel(GeneratorModel):
 
         for name, values in generator.locals.items():
             method = values[0]
-            patched = lambda cls, meth=method: meth
+
+            def patched(cls, meth=method):
+                return meth
 
             setattr(type(ret), IMPL_PREFIX + name, property(patched))
 
@@ -602,7 +709,7 @@ class InstanceModel(ObjectModel):
 
     @property
     def attr___doc__(self):
-        return node_classes.Const(self._instance.doc)
+        return node_classes.Const(getattr(self._instance.doc_node, "value", None))
 
     @property
     def attr___dict__(self):
@@ -614,15 +721,12 @@ class InstanceModel(ObjectModel):
 
 class ExceptionInstanceModel(InstanceModel):
     @property
-    def attr_args(self):
-        message = node_classes.Const("")
-        args = node_classes.Tuple(parent=self._instance)
-        args.postinit((message,))
-        return args
+    def attr_args(self) -> nodes.Tuple:
+        return nodes.Tuple(parent=self._instance)
 
     @property
     def attr___traceback__(self):
-        builtins_ast_module = astroid.MANAGER.builtins_module
+        builtins_ast_module = AstroidManager().builtins_module
         traceback_type = builtins_ast_module[types.TracebackType.__name__]
         return traceback_type.instantiate_class()
 
@@ -659,9 +763,16 @@ class ImportErrorInstanceModel(ExceptionInstanceModel):
         return node_classes.Const("")
 
 
+class UnicodeDecodeErrorInstanceModel(ExceptionInstanceModel):
+    @property
+    def attr_object(self):
+        return node_classes.Const("")
+
+
 BUILTIN_EXCEPTIONS = {
     "builtins.SyntaxError": SyntaxErrorInstanceModel,
     "builtins.ImportError": ImportErrorInstanceModel,
+    "builtins.UnicodeDecodeError": UnicodeDecodeErrorInstanceModel,
     # These are all similar to OSError in terms of attributes
     "builtins.OSError": OSErrorInstanceModel,
     "builtins.BlockingIOError": OSErrorInstanceModel,
@@ -691,10 +802,12 @@ class DictModel(ObjectModel):
         """Generate a bound method that can infer the given *obj*."""
 
         class DictMethodBoundMethod(astroid.BoundMethod):
-            def infer_call_result(self, caller, context=None):
+            def infer_call_result(
+                self, caller, context: InferenceContext | None = None
+            ):
                 yield obj
 
-        meth = next(self._instance._proxied.igetattr(name))
+        meth = next(self._instance._proxied.igetattr(name), None)
         return DictMethodBoundMethod(proxy=meth, bound=self._instance)
 
     @property
@@ -707,9 +820,6 @@ class DictModel(ObjectModel):
             elems.append(elem)
         obj.postinit(elts=elems)
 
-        # pylint: disable=import-outside-toplevel; circular import
-        from astroid import objects
-
         obj = objects.DictItems(obj)
         return self._generic_dict_attribute(obj, "items")
 
@@ -719,35 +829,26 @@ class DictModel(ObjectModel):
         obj = node_classes.List(parent=self._instance)
         obj.postinit(elts=keys)
 
-        # pylint: disable=import-outside-toplevel; circular import
-        from astroid import objects
-
         obj = objects.DictKeys(obj)
         return self._generic_dict_attribute(obj, "keys")
 
     @property
     def attr_values(self):
-
         values = [value for (_, value) in self._instance.items]
         obj = node_classes.List(parent=self._instance)
         obj.postinit(values)
-
-        # pylint: disable=import-outside-toplevel; circular import
-        from astroid import objects
 
         obj = objects.DictValues(obj)
         return self._generic_dict_attribute(obj, "values")
 
 
 class PropertyModel(ObjectModel):
-    """Model for a builtin property"""
+    """Model for a builtin property."""
 
-    # pylint: disable=import-outside-toplevel
     def _init_function(self, name):
-        from astroid.node_classes import Arguments
-        from astroid.scoped_nodes import FunctionDef
+        function = nodes.FunctionDef(name=name, parent=self._instance)
 
-        args = Arguments()
+        args = nodes.Arguments(parent=function)
         args.postinit(
             args=[],
             defaults=[],
@@ -759,22 +860,20 @@ class PropertyModel(ObjectModel):
             kwonlyargs_annotations=[],
         )
 
-        function = FunctionDef(name=name, parent=self._instance)
-
         function.postinit(args=args, body=[])
         return function
 
     @property
     def attr_fget(self):
-        from astroid.scoped_nodes import FunctionDef
-
         func = self._instance
 
-        class PropertyFuncAccessor(FunctionDef):
-            def infer_call_result(self, caller=None, context=None):
+        class PropertyFuncAccessor(nodes.FunctionDef):
+            def infer_call_result(
+                self, caller=None, context: InferenceContext | None = None
+            ):
                 nonlocal func
                 if caller and len(caller.args) != 1:
-                    raise exceptions.InferenceError(
+                    raise InferenceError(
                         "fget() needs a single argument", target=self, context=context
                     )
 
@@ -784,6 +883,46 @@ class PropertyModel(ObjectModel):
 
         property_accessor = PropertyFuncAccessor(name="fget", parent=self._instance)
         property_accessor.postinit(args=func.args, body=func.body)
+        return property_accessor
+
+    @property
+    def attr_fset(self):
+        func = self._instance
+
+        def find_setter(func: Property) -> astroid.FunctionDef | None:
+            """
+            Given a property, find the corresponding setter function and returns it.
+
+            :param func: property for which the setter has to be found
+            :return: the setter function or None
+            """
+            for target in [
+                t for t in func.parent.get_children() if t.name == func.function.name
+            ]:
+                for dec_name in target.decoratornames():
+                    if dec_name.endswith(func.function.name + ".setter"):
+                        return target
+            return None
+
+        func_setter = find_setter(func)
+        if not func_setter:
+            raise InferenceError(
+                f"Unable to find the setter of property {func.function.name}"
+            )
+
+        class PropertyFuncAccessor(nodes.FunctionDef):
+            def infer_call_result(
+                self, caller=None, context: InferenceContext | None = None
+            ):
+                nonlocal func_setter
+                if caller and len(caller.args) != 2:
+                    raise InferenceError(
+                        "fset() needs two arguments", target=self, context=context
+                    )
+                yield from func_setter.infer_call_result(caller=caller, context=context)
+
+        property_accessor = PropertyFuncAccessor(name="fset", parent=self._instance)
+        property_accessor.postinit(args=func_setter.args, body=func_setter.body)
         return property_accessor
 
     @property

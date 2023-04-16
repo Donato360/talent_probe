@@ -1,4 +1,4 @@
-# $Id: standalone.py 4802 2006-11-12 18:02:17Z goodger $
+# $Id: standalone.py 8979 2022-01-26 19:05:07Z milde $
 # Author: David Goodger <goodger@python.org>
 # Copyright: This module has been placed in the public domain.
 
@@ -9,7 +9,6 @@ Standalone file Reader for the reStructuredText markup syntax.
 __docformat__ = 'reStructuredText'
 
 
-import sys
 from docutils import frontend, readers
 from docutils.transforms import frontmatter, references, misc
 
@@ -23,7 +22,7 @@ class Reader(readers.Reader):
     """A single document tree."""
 
     settings_spec = (
-        'Standalone Reader',
+        'Standalone Reader Options',
         None,
         (('Disable the promotion of a lone top-level section title to '
           'document title (and subsequent section title to document '

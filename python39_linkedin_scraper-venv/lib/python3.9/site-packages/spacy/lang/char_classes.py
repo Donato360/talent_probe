@@ -1,9 +1,8 @@
-# coding: utf8
-from __future__ import unicode_literals
-
 split_chars = lambda char: list(char.strip().split(" "))
 merge_chars = lambda char: char.strip().replace(" ", "|")
 group_chars = lambda char: char.strip().replace(" ", "")
+
+_ethiopic = r"\u1200-\u137F"
 
 _bengali = r"\u0980-\u09FF"
 
@@ -45,6 +44,10 @@ _latin_supplement = r"\u00C0-\u00D6\u00D8-\u00F6\u00F8-\u00FF"
 _hangul_syllables = r"\uAC00-\uD7AF"
 _hangul_jamo = r"\u1100-\u11FF"
 _hangul = _hangul_syllables + _hangul_jamo
+
+_hiragana = r"\u3040-\u309F"
+_katakana = r"\u30A0-\u30FFー"
+_kana = _hiragana + _katakana
 
 # letters with diacritics - Catalan, Czech, Latin, Latvian, Lithuanian, Polish, Slovak, Turkish, Welsh
 _latin_u_extendedA = (
@@ -217,11 +220,26 @@ _macedonian_lower = r"ѓѕјљњќѐѝ"
 _macedonian_upper = r"ЃЅЈЉЊЌЀЍ"
 _macedonian = r"ѓѕјљњќѐѝЃЅЈЉЊЌЀЍ"
 
-_upper = LATIN_UPPER + _russian_upper + _tatar_upper + _greek_upper + _ukrainian_upper + _macedonian_upper
-_lower = LATIN_LOWER + _russian_lower + _tatar_lower + _greek_lower + _ukrainian_lower + _macedonian_lower
+_upper = (
+    LATIN_UPPER
+    + _russian_upper
+    + _tatar_upper
+    + _greek_upper
+    + _ukrainian_upper
+    + _macedonian_upper
+)
+_lower = (
+    LATIN_LOWER
+    + _russian_lower
+    + _tatar_lower
+    + _greek_lower
+    + _ukrainian_lower
+    + _macedonian_lower
+)
 
 _uncased = (
-    _bengali
+    _ethiopic
+    + _bengali
     + _hebrew
     + _persian
     + _sinhala
@@ -230,12 +248,19 @@ _uncased = (
     + _tamil
     + _telugu
     + _hangul
+    + _kana
     + _cjk
 )
 
-ALPHA = group_chars(LATIN + _russian + _tatar + _greek + _ukrainian + _macedonian + _uncased)
+ALPHA = group_chars(
+    LATIN + _russian + _tatar + _greek + _ukrainian + _macedonian + _uncased
+)
 ALPHA_LOWER = group_chars(_lower + _uncased)
 ALPHA_UPPER = group_chars(_upper + _uncased)
+
+_combining_diacritics = r"\u0300-\u036f"
+
+COMBINING_DIACRITICS = _combining_diacritics
 
 _units = (
     "km km² km³ m m² m³ dm dm² dm³ cm cm² cm³ mm mm² mm³ ha µm nm yd in ft "
@@ -244,7 +269,10 @@ _units = (
     "кг г мг м/с км/ч кПа Па мбар Кб КБ кб Мб МБ мб Гб ГБ гб Тб ТБ тб"
     "كم كم² كم³ م م² م³ سم سم² سم³ مم مم² مم³ كم غرام جرام جم كغ ملغ كوب اكواب"
 )
-_currency = r"\$ £ € ¥ ฿ US\$ C\$ A\$ ₽ ﷼ ₴"
+_currency = (
+    r"\$ £ € ¥ ฿ US\$ C\$ A\$ ₽ ﷼ ₴ ₠ ₡ ₢ ₣ ₤ ₥ ₦ ₧ ₨ ₩ ₪ ₫ € ₭ ₮ ₯ ₰ "
+    r"₱ ₲ ₳ ₴ ₵ ₶ ₷ ₸ ₹ ₺ ₻ ₼ ₽ ₾ ₿"
+)
 
 # These expressions contain various unicode variations, including characters
 # used in Chinese (see #1333, #1340, #1351) – unless there are cross-language
@@ -252,7 +280,7 @@ _currency = r"\$ £ € ¥ ฿ US\$ C\$ A\$ ₽ ﷼ ₴"
 _punct = (
     r"… …… , : ; \! \? ¿ ؟ ¡ \( \) \[ \] \{ \} < > _ # \* & 。 ？ ！ ， 、 ； ： ～ · । ، ۔ ؛ ٪"
 )
-_quotes = r'\' " ” “ ` ‘ ´ ’ ‚ , „ » « 「 」 『 』 （ ） 〔 〕 【 】 《 》 〈 〉'
+_quotes = r'\' " ” “ ` ‘ ´ ’ ‚ , „ » « 「 」 『 』 （ ） 〔 〕 【 】 《 》 〈 〉 〈 〉  ⟦ ⟧'
 _hyphens = "- – — -- --- —— ~"
 
 # Various symbols like dingbats, but also emoji

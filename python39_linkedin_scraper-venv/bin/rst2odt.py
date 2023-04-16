@@ -1,6 +1,6 @@
-#!/Volumes/SAM_Backup/data_scraping/python39_linkedin_scraper-venv/bin/python3
+#!/Volumes/Seagate Bac/web_scrapping/linkedIn_data_scraper/python39_linkedin_scraper-venv/bin/python3
 
-# $Id: rst2odt.py 5839 2009-01-07 19:09:28Z dkuhlman $
+# $Id: rst2odt.py 8994 2022-01-29 16:28:17Z milde $
 # Author: Dave Kuhlman <dkuhlman@rexx.com>
 # Copyright: This module has been placed in the public domain.
 
@@ -8,7 +8,6 @@
 A front end to the Docutils Publisher, producing OpenOffice documents.
 """
 
-import sys
 try:
     import locale
     locale.setlocale(locale.LC_ALL, '')
@@ -26,5 +25,4 @@ description = ('Generates OpenDocument/OpenOffice/ODF documents from '
 writer = Writer()
 reader = Reader()
 output = publish_cmdline_to_binary(reader=reader, writer=writer,
-    description=description)
-
+                                   description=description)

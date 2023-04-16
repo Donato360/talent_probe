@@ -34,7 +34,7 @@ class MixedObject(ValueWrapper):
 
     This combined logic makes it possible to provide more powerful REPL
     completion. It allows side effects that are not noticable with the default
-    parser structure to still be completeable.
+    parser structure to still be completable.
 
     The biggest difference from CompiledValue to MixedObject is that we are
     generally dealing with Python code and not with C code. This will generate
@@ -187,7 +187,7 @@ def _find_syntax_node_name(inference_state, python_object):
     try:
         python_object = _get_object_to_check(python_object)
         path = inspect.getsourcefile(python_object)
-    except TypeError:
+    except (OSError, TypeError):
         # The type might not be known (e.g. class_with_dict.__weakref__)
         return None
     path = None if path is None else Path(path)
@@ -267,7 +267,7 @@ def _find_syntax_node_name(inference_state, python_object):
 @inference_state_function_cache()
 def _create(inference_state, compiled_value, module_context):
     # TODO accessing this is bad, but it probably doesn't matter that much,
-    # because we're working with interpreteters only here.
+    # because we're working with interpreters only here.
     python_object = compiled_value.access_handle.access._obj
     result = _find_syntax_node_name(inference_state, python_object)
     if result is None:

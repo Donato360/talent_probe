@@ -42,11 +42,17 @@ class ChangedFile:
         if self._from_path is None:
             from_p = ''
         else:
-            from_p = self._from_path.relative_to(project_path)
+            try:
+                from_p = self._from_path.relative_to(project_path)
+            except ValueError:  # Happens it the path is not on th project_path
+                from_p = self._from_path
         if self._to_path is None:
             to_p = ''
         else:
-            to_p = self._to_path.relative_to(project_path)
+            try:
+                to_p = self._to_path.relative_to(project_path)
+            except ValueError:
+                to_p = self._to_path
         diff = difflib.unified_diff(
             old_lines, new_lines,
             fromfile=str(from_p),
@@ -156,8 +162,8 @@ def rename(inference_state, definitions, new_name):
 def inline(inference_state, names):
     if not names:
         raise RefactoringError("There is no name under the cursor")
-    if any(n.api_type == 'module' for n in names):
-        raise RefactoringError("Cannot inline imports or modules")
+    if any(n.api_type in ('module', 'namespace') for n in names):
+        raise RefactoringError("Cannot inline imports, modules or namespaces")
     if any(n.tree_name is None for n in names):
         raise RefactoringError("Cannot inline builtins/extensions")
 

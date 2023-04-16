@@ -1,6 +1,3 @@
-# coding: utf8
-from __future__ import unicode_literals
-
 from ...attrs import LIKE_NUM
 
 
@@ -50,6 +47,41 @@ _num_words = [
 ]
 
 
+_ordinal_words = [
+    "primero",
+    "segundo",
+    "tercero",
+    "cuarto",
+    "quinto",
+    "sexto",
+    "séptimo",
+    "octavo",
+    "noveno",
+    "décimo",
+    "undécimo",
+    "duodécimo",
+    "decimotercero",
+    "decimocuarto",
+    "decimoquinto",
+    "decimosexto",
+    "decimoséptimo",
+    "decimoctavo",
+    "decimonoveno",
+    "vigésimo",
+    "trigésimo",
+    "cuadragésimo",
+    "quincuagésimo",
+    "sexagésimo",
+    "septuagésimo",
+    "octogésima",
+    "nonagésima",
+    "centésima",
+    "milésima",
+    "millonésima",
+    "billonésima",
+]
+
+
 def like_num(text):
     if text.startswith(("+", "-", "±", "~")):
         text = text[1:]
@@ -60,7 +92,11 @@ def like_num(text):
         num, denom = text.split("/")
         if num.isdigit() and denom.isdigit():
             return True
-    if text.lower() in _num_words:
+    text_lower = text.lower()
+    if text_lower in _num_words:
+        return True
+    # Check ordinal number
+    if text_lower in _ordinal_words:
         return True
     return False
 

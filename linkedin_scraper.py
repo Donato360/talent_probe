@@ -8,6 +8,7 @@ try:
     from selenium import webdriver
     from  bs4 import BeautifulSoup
     from webdriver_manager.chrome import ChromeDriverManager
+    from selenium.webdriver.chrome.service import Service
     from selenium.webdriver.chrome.options import Options
     from selenium.webdriver.common.by import By
     from selenium.webdriver.common.keys import Keys
@@ -19,7 +20,7 @@ try:
     import argparse
     import sys
     from selenium_stealth import stealth
-    from helpers import average 
+    from helpers import average
     from login import Login
     from profiles_urls import ProfileURLs
     from profile_general_info import ProfileGeneralInfo
@@ -41,31 +42,26 @@ def main(source):
         # # options.add_argument("start-maximized")
         # # chrome_options = webdriver.ChromeOptions()
         # # chrome_options.add_experimental_option("detach", True)
-        options.add_argument("--headless")
-        # options.add_experimental_option("detach", True)
+        # options.add_argument("--headless")
+        options.add_experimental_option("detach", True)
         # options.add_experimental_option("excludeSwitches", ["enable-automation"])
         # options.add_experimental_option('useAutomationExtension', False)
         # global driver
 
-        driver = webdriver.Chrome(ChromeDriverManager().install(), options=options)
+        driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=options)
         driver.get('https://www.linkedin.com/')
         load_cookie(driver, '/tmp/cookie')
 
-        # stealth(driver,
-        #     languages=["en-US", "en"],
-        #     vendor="Google Inc.",
-        #     platform="Win32",
-        #     webgl_vendor="Intel Inc.",
-        #     renderer="Intel Iris OpenGL Engine",
-        #     fix_hairline=True,
-        # )
-
-        # with open('driver.pickle', 'rb') as f:
-        # # The protocol version used is detected automatically, so we do not
-        # # have to specify it.
-        #     data = pickle.load(f)
-
-        # browser.set_window_size(1800, 900)
+        stealth(driver,
+            languages=["en-US", "en"],
+            vendor="Google Inc.",
+            platform="Win32",
+            webgl_vendor="Intel Inc.",
+            renderer="Intel Iris OpenGL Engine",
+            fix_hairline=True,
+        )
+        
+        print()
         print('Driver: {} has been successfully set'.format(driver.name))
         print()
     except Exception as e:

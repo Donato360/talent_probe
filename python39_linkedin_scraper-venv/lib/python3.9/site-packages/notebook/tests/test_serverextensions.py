@@ -1,5 +1,5 @@
-import imp
 import os
+import site
 import sys
 from unittest import TestCase
 from unittest.mock import patch
@@ -12,7 +12,7 @@ from traitlets.tests.utils import check_help_all_output
 from jupyter_core import paths
 
 from notebook.serverextensions import toggle_serverextension_python
-from notebook import nbextensions, serverextensions, extensions
+from notebook import nbextensions, extensions
 from notebook.notebookapp import NotebookApp
 from notebook.nbextensions import _get_config_dir
 
@@ -30,7 +30,7 @@ def test_help_output():
 
 outer_file = __file__
 
-class MockExtensionModule(object):
+class MockExtensionModule:
     __file__ = outer_file
 
     @staticmethod
@@ -40,13 +40,13 @@ class MockExtensionModule(object):
         }]
 
     loaded = False
-    
+
     def load_jupyter_server_extension(self, app):
         self.loaded = True
 
 
 class MockEnvTestCase(TestCase):
-    
+
     def tempdir(self):
         td = TemporaryDirectory()
         self.tempdirs.append(td)
@@ -63,7 +63,7 @@ class MockEnvTestCase(TestCase):
         self.system_config_dir = os.path.join(self.test_dir, 'system_config')
         self.system_path = [self.system_data_dir]
         self.system_config_path = [self.system_config_dir]
-        
+
         self.patches = []
         p = patch.dict('os.environ', {
             'JUPYTER_CONFIG_DIR': self.config_dir,
@@ -84,6 +84,11 @@ class MockEnvTestCase(TestCase):
             p = patch.object(mod,
                 'ENV_CONFIG_PATH', [])
             self.patches.append(p)
+        # avoid adding the user site to the config paths with jupyter-core >= 4.9
+        # https://github.com/jupyter/jupyter_core/pull/242
+        p = patch.object(site,
+            'ENABLE_USER_SITE', False)
+        self.patches.append(p)
         for p in self.patches:
             p.start()
             self.addCleanup(p.stop)
@@ -91,7 +96,7 @@ class MockEnvTestCase(TestCase):
         self.assertEqual(paths.jupyter_config_path(), [self.config_dir] + self.system_config_path)
         self.assertEqual(extensions._get_config_dir(user=False), self.system_config_dir)
         self.assertEqual(paths.jupyter_path(), [self.data_dir] + self.system_path)
-    
+
     def tearDown(self):
         for modulename in self._mock_extensions:
             sys.modules.pop(modulename)

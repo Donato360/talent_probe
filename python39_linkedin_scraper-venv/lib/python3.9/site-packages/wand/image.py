@@ -23,9 +23,10 @@ from .compat import (abc, binary, binary_type, encode_filename, file_types,
 from .exceptions import (MissingDelegateError, WandException,
                          WandRuntimeError, WandLibraryVersionError)
 from .font import Font
-from .resource import DestroyedResourceError, Resource
-from .cdefs.structures import (CCObjectInfo, CCObjectInfo70A, ChannelFeature,
-                               GeometryInfo, PixelInfo, RectangleInfo)
+from .resource import DestroyedResourceError, Resource, genesis
+from .cdefs.structures import (CCObjectInfo, CCObjectInfo70A, CCObjectInfo710,
+                               ChannelFeature, GeometryInfo, PixelInfo,
+                               RectangleInfo)
 from .version import MAGICK_VERSION_NUMBER, MAGICK_HDRI
 
 
@@ -822,6 +823,18 @@ if MAGICK_VERSION_NUMBER >= 0x700:  # pragma: no cover
                           'edgein', 'edgeout', 'edge', 'tophat', 'bottom_hat',
                           'hit_and_miss', 'thinning', 'thicken', 'distance',
                           'voronoi')
+
+
+#: (:class:`tuple`) The list of montage behaviors used by
+#: :meth:`Image.montage()` method.
+#:
+#: - ``'undefined'``
+#: - ``'frame'``
+#: - ``'unframe'``
+#: - ``'concatenate'``
+#:
+#: .. versionadded:: 0.6.8
+MONTAGE_MODES = ('undefined', 'frame', 'unframe', 'concatenate')
 
 
 #: (:class:`tuple`) The list of noise types used by
@@ -2716,9 +2729,9 @@ class BaseImage(Resource):
         self.orientation = 'top_left'
 
     def _channel_to_mask(self, value):
-        """Attempts to resolve user input into a :c:type:`ChannelType` bit-mask.
-        User input can be an integer, a string defined in :const:`CHANNELS`,
-        or a string following ImageMagick's `CLI format`__.
+        """Attempts to resolve user input into a :c:type:`ChannelType`
+        bit-mask. User input can be an integer, a string defined in
+        :const:`CHANNELS`, or a string following ImageMagick's `CLI format`__.
 
         __ https://imagemagick.org/script/command-line-options.php#channel
 
@@ -2832,7 +2845,7 @@ class BaseImage(Resource):
 
         :param columns: width of resized image.
         :type columns: :class:`numbers.Integral`
-        :param rows: hight of resized image.
+        :param rows: height of resized image.
         :type rows: :class:`numbers.Integral`
 
         .. versionadded:: 0.5.3
@@ -3132,7 +3145,7 @@ class BaseImage(Resource):
     @manipulative
     @trap_exception
     def brightness_contrast(self, brightness=0.0, contrast=0.0, channel=None):
-        """Converts ``brightness`` & ``contrast`` paramaters into a slope &
+        """Converts ``brightness`` & ``contrast`` parameters into a slope &
         intercept, and applies a polynomial function.
 
         :param brightness: between ``-100.0`` and ``100.0``. Default is ``0.0``
@@ -3290,7 +3303,7 @@ class BaseImage(Resource):
 
     @manipulative
     @trap_exception
-    def chop(self, width, height, x=0, y=0):
+    def chop(self, width=None, height=None, x=None, y=None, gravity=None):
         """Removes a region of an image, and reduces the image size
         accordingly.
 
@@ -3302,10 +3315,29 @@ class BaseImage(Resource):
         :type x: :class:`numbers.Integral`
         :param y: Offset on the Y-axis.
         :type y: :class:`numbers.Integral`
+        :param gravity: Helper to auto-calculate offset.
+                        See :const:`GRAVITY_TYPES`.
+        :type gravity: :class:`basestring`
 
         .. versionadded:: 0.5.5
+
+        .. versionchanged:: 0.6.8
+           Added ``gravity`` argument.
         """
+        if width is None or width == 0:
+            width = self.width
+        if height is None or height == 0:
+            height = self.height
         assertions.assert_unsigned_integer(width=width, height=height)
+        if gravity is None:
+            if x is None:
+                x = 0
+            if y is None:
+                y = 0
+        else:
+            if x is not None or y is not None:
+                raise ValueError('x & y can not be used with gravity.')
+            y, x = self._gravity_to_offset(gravity, width, height)
         assertions.assert_integer(x=x, y=y)
         return library.MagickChopImage(self.wand, width, height, x, y)
 
@@ -3428,8 +3460,8 @@ class BaseImage(Resource):
     @manipulative
     @trap_exception
     def coalesce(self):
-        """Rebuilds image sequence with each frame size the same as first frame,
-        and composites each frame atop of previous.
+        """Rebuilds image sequence with each frame size the same as first
+        frame, and composites each frame atop of previous.
 
         .. note::
 
@@ -4226,7 +4258,9 @@ class BaseImage(Resource):
             library.MagickSetImageArtifact(self.wand, key, val)
         objects_ptr = ctypes.c_void_p(0)
         CCObjectInfoStructure = CCObjectInfo
-        if MAGICK_VERSION_NUMBER > 0x709:
+        if MAGICK_VERSION_NUMBER > 0x70B:
+            CCObjectInfoStructure = CCObjectInfo710
+        elif MAGICK_VERSION_NUMBER > 0x709:
             CCObjectInfoStructure = CCObjectInfo70A
         ccoi_mem_size = ctypes.sizeof(CCObjectInfoStructure)
         r = library.MagickConnectedComponentsImage(self.wand, connectivity,
@@ -4590,7 +4624,7 @@ class BaseImage(Resource):
 
     @manipulative
     @trap_exception
-    def distort(self, method, arguments, best_fit=False):
+    def distort(self, method, arguments, best_fit=False, filter=None):
         """Distorts an image using various distorting methods.
 
         .. code:: python
@@ -4634,8 +4668,14 @@ class BaseImage(Resource):
         :param best_fit: Attempt to resize resulting image fit distortion.
                          Defaults False
         :type best_fit: :class:`bool`
+        :param filter: Optional resampling filter used when calculating
+                       pixel-value. Defaults to ``'mitchell'``, or
+                       ``'lanczos'`` based on image type & operation.
+        :type filter: :class:`basestring`
 
         .. versionadded:: 0.4.1
+        .. versionchanged:: 0.6.11
+           Included `filter=` parameter.
         """
         assertions.string_in_list(DISTORTION_METHODS,
                                   'wand.image.DISTORTION_METHODS',
@@ -4646,6 +4686,33 @@ class BaseImage(Resource):
         argc = len(arguments)
         argv = (ctypes.c_double * argc)(*arguments)
         method_idx = DISTORTION_METHODS.index(method)
+        if filter is not None:
+            assertions.string_in_list(FILTER_TYPES,
+                                      'wand.image.FILTER_TYPES',
+                                      filter=filter)
+            ok = False
+            if library.MagickSetImageFilter:
+                filter_idx = FILTER_TYPES.index(filter)
+                ok = library.MagickSetImageFilter(self.wand,
+                                                  filter_idx)
+            else:
+                img_info_ptr = libmagick.AcquireImageInfo()
+                exp_ptr = libmagick.AcquireExceptionInfo()
+                img_ptr = library.GetImageFromMagickWand(self.wand)
+                if all([img_info_ptr, exp_ptr, img_ptr]):
+                    libmagick.SetImageOption(img_info_ptr,
+                                             b'filter',
+                                             filter.encode())
+                    ok = libmagick.SyncImageSettings(img_info_ptr,
+                                                     img_ptr,
+                                                     exp_ptr)
+                if img_info_ptr:
+                    img_info_ptr = libmagick.DestroyImageInfo(img_info_ptr)
+                if exp_ptr:
+                    exp_ptr = libmagick.DestroyExceptionInfo(exp_ptr)
+                if not ok:
+                    raise AttributeError('Unable to set filter for ' +
+                                         filter)
         return library.MagickDistortImage(self.wand, method_idx,
                                           argc, argv, bool(best_fit))
 
@@ -4699,9 +4766,11 @@ class BaseImage(Resource):
         :type passphrase: :class:`basestring`
 
         .. versionadded:: 0.6.3
+        .. versionchanged:: 0.6.8
+           Fixed C-API call.
         """
         assertions.assert_string(passphrase=passphrase)
-        return library.MagickDecipherImage(self.wand, binary(passphrase))
+        return library.MagickEncipherImage(self.wand, binary(passphrase))
 
     @manipulative
     @trap_exception
@@ -4843,6 +4912,9 @@ class BaseImage(Resource):
         :rtype: :class:`collections.abc.Sequence`
 
         .. versionadded:: 0.5.0
+
+        .. versionchanged:: 0.6.11
+           Update storage type size for `"long"` & `"quantum"` values.
         """
         _w, _h = self.size
         if width is None:
@@ -4860,14 +4932,14 @@ class BaseImage(Resource):
                 raise ValueError('Unknown channel label: ' +
                                  repr(channel))
         c_storage_types = [
-            None,
-            ctypes.c_ubyte,
-            ctypes.c_double,
-            ctypes.c_float,
-            ctypes.c_uint,
-            ctypes.c_ulong,
-            ctypes.c_double,  # FIXME: Might be c_longdouble?
-            ctypes.c_ushort
+            None,                                # undefined
+            ctypes.c_ubyte,                      # char
+            ctypes.c_double,                     # double
+            ctypes.c_float,                      # float
+            ctypes.c_uint,                       # integer
+            ctypes.c_uint64,                     # long
+            library.PixelGetRedQuantum.restype,  # quantum
+            ctypes.c_ushort                      # short
         ]
         s_index = STORAGE_TYPES.index(storage)
         c_storage = c_storage_types[s_index]
@@ -4885,35 +4957,47 @@ class BaseImage(Resource):
 
     @manipulative
     @trap_exception
-    def extent(self, width=None, height=None, x=0, y=0):
-        """extends the image as defined by the geometry, gravity, and wand
-        background color. Set the (x,y) offset of the geometry to move the
-        original wand relative to the extended wand.
+    def extent(self, width=None, height=None, x=None, y=None, gravity=None):
+        """Adjust the canvas size of the image. Use ``x`` & ``y`` to offset
+        the image's relative placement in the canvas, or ``gravity`` helper
+        for quick position placement.
 
-        :param width: the :attr:`width` of the extended image.
-                      default is the :attr:`width` of the image.
+        :param width: the target width of the extended image.
+                      Default is the :attr:`width` of the image.
         :type width: :class:`numbers.Integral`
-        :param height: the :attr:`height` of the extended image.
-                       default is the :attr:`height` of the image.
+        :param height: the target height of the extended image.
+                       Default is the :attr:`height` of the image.
         :type height: :class:`numbers.Integral`
-        :param x: the :attr:`x` offset of the extended image.
-                      default is 0
+        :param x: the x-axis offset of the extended image.
+                      Default is 0, and can not be used with ``gravity``.
         :type x: :class:`numbers.Integral`
         :param y: the :attr:`y` offset of the extended image.
-                       default is 0
+                       Default is 0, and can not be used with ``gravity``.
         :type y: :class:`numbers.Integral`
+        :param gravity: position of the item extent when not using ``x`` &
+                        ``y``. See :const:`GRAVITY_TYPES`.
+        :type gravity: :class:`basestring`
 
         .. versionadded:: 0.4.5
+
+        .. versionchanged:: 0.6.8
+           Added ``gravity`` argument.
         """
         if width is None or width == 0:
             width = self.width
         if height is None or height == 0:
             height = self.height
-        if width < 0:
-            raise ValueError('image width cannot be negative integer')
-        elif height < 0:
-            raise ValueError('image height cannot be negative integer')
-
+        assertions.assert_unsigned_integer(width=width, height=height)
+        if gravity is None:
+            if x is None:
+                x = 0
+            if y is None:
+                y = 0
+        else:
+            if x is not None or y is not None:
+                raise ValueError('x & y can not be used with gravity.')
+            y, x = self._gravity_to_offset(gravity, width, height)
+        assertions.assert_integer(x=x, y=y)
         return library.MagickExtentImage(self.wand, width, height, x, y)
 
     def features(self, distance):
@@ -5198,6 +5282,10 @@ class BaseImage(Resource):
         :rtype: :class:`Image`
 
         .. versionadded:: 0.4.1
+
+        .. versionchanged:: 0.6.9
+           Will raise :class:`WandRuntimeError` if method is unable to generate
+           a new image & doesn't throw an exception.
         """
         assertions.assert_string(expression=expression)
         c_expression = binary(expression)
@@ -5220,6 +5308,10 @@ class BaseImage(Resource):
             return Image(image=BaseImage(new_wand))
         else:  # pragma: no cover
             self.raise_exception()
+            # If no exception is on the stack, then raise a generic run-time
+            # error. This can happen naturally if the source image is null,
+            # or the FX expression was unable to generate a new raster.
+            raise WandRuntimeError('No FX Image was generated by expression.')
 
     @manipulative
     @trap_exception
@@ -5492,6 +5584,9 @@ class BaseImage(Resource):
         :type storage: :class:`basestring`
 
         .. versionadded:: 0.5.0
+
+        .. versionchanged:: 0.6.11
+           Update storage type size for `"long"` & `"quantum"` values.
         """
         _w, _h = self.size
         if width is None:
@@ -5521,14 +5616,14 @@ class BaseImage(Resource):
             )
             raise ValueError(msg)
         c_storage_types = [
-            None,
-            ctypes.c_ubyte,
-            ctypes.c_double,
-            ctypes.c_float,
-            ctypes.c_uint,
-            ctypes.c_ulong,
-            ctypes.c_double,  # FIXME: Might be c_longdouble ?
-            ctypes.c_ushort
+            None,                                # undefined
+            ctypes.c_ubyte,                      # char
+            ctypes.c_double,                     # double
+            ctypes.c_float,                      # float
+            ctypes.c_uint,                       # integer
+            ctypes.c_uint64,                     # long
+            library.PixelGetRedQuantum.restype,  # quantum
+            ctypes.c_ushort                      # short
         ]
         s_index = STORAGE_TYPES.index(storage)
         c_type = c_storage_types[s_index]
@@ -5762,6 +5857,45 @@ class BaseImage(Resource):
             sigma = radius - 0.5
         assertions.assert_real(radius=radius, sigma=sigma)
         return library.MagickKuwaharaImage(self.wand, radius, sigma)
+
+    @manipulative
+    def label(self, text, left=None, top=None, font=None, gravity=None,
+              background_color='transparent'):
+        """Writes a label ``text`` into the position on top of the existing
+        canvas. This method doesn't autofit text like :meth:`caption`. Use
+        ``left`` & ``top``, or ``gravity``, to position the text.
+
+        :param text: text to write.
+        :type text: :class:`basestring`
+        :param left: x offset in pixels.
+        :type left: :class:`numbers.Integral`
+        :param top: y offset in pixels.
+        :type top: :class:`numbers.Integral`
+        :param font: font to use.  default is :attr:`font` of the image.
+        :type font: :class:`wand.font.Font`
+        :param gravity: text placement gravity.
+        :type gravity: :class:`basestring`
+
+        .. versionadded:: 0.6.8
+        """
+        if font is not None and not isinstance(font, Font):
+            raise TypeError('font must be a wand.font.Font, not ' + repr(font))
+        if gravity is not None:
+            assertions.string_in_list(GRAVITY_TYPES,
+                                      'wand.image.GRAVITY_TYPES',
+                                      gravity=gravity)
+        if font is None:
+            try:
+                font = self.font
+                if font is None:
+                    raise TypeError()
+            except TypeError:
+                raise TypeError('font must be specified or existing in image')
+        with Image() as textboard:
+            textboard.font = font
+            textboard.background_color = background_color
+            textboard.read(filename=b'label:' + text.encode('utf-8'))
+            self.composite(textboard, left=left, top=top, gravity=gravity)
 
     @trap_exception
     def level(self, black=0.0, white=None, gamma=1.0, channel=None):
@@ -7224,6 +7358,59 @@ class BaseImage(Resource):
                                                clip_mask.wand)
         return r
 
+    def region(self, width=None, height=None, x=None, y=None, gravity=None):
+        """Extract an area of the image. This is the same as :meth:`crop`,
+        but returns a new instance of :class:`Image` without altering the
+        original source image.
+
+        .. code-block:: python
+
+            from wand.image import Image
+
+            with Image(filename='input.jpg') as img:
+                with img.region(width=100, height=100, x=0, y=0) as area:
+                    pass
+
+        :param width: Area size on the X-axis. Default value is
+                      the image's :attr:`page_width`.
+        :type width: :class:`numbers.Integral`
+        :param height: Area size on the  Y-axis.Default value is
+                       the image's :attr:`page_height`.
+        :type height: :class:`numbers.Integral`
+        :param x: X-axis offset. This number can be negative. Default value is
+                  the image's :attr:`page_x`.
+        :type x: :class:`numbers.Integral`
+        :param y: Y-axis offset. This number can be negative. Default value is
+                  the image's :attr:`page_y`.
+        :type y: :class:`numbers.Integral`
+        :param region: Helper attribute to set ``x`` & ``y`` offset. See
+                       :const:`GRAVITY_TYPES`.
+        :type region: :class:`basestring`
+        :returns: New instance of Wand.
+        :rtype: :class:`Image`
+
+        .. versionadded:: 0.6.8
+        """
+        ow, oh, ox, oy = self.page
+        if width is None:
+            width = ow
+        if height is None:
+            height = oh
+        assertions.assert_unsigned_integer(width=width, height=height)
+        if gravity is not None:
+            if x is not None or y is not None:
+                raise ValueError('x & y can not be used with gravity.')
+            y, x = self._gravity_to_offset(gravity, width, height)
+        if x is None:
+            x = ox
+        if y is None:
+            y = oy
+        assertions.assert_integer(x=x, y=y)
+        new_wand = library.MagickGetImageRegion(self.wand, width, height, x, y)
+        if not new_wand:
+            self.raise_exception()
+        return Image(BaseImage(new_wand))
+
     @manipulative
     @trap_exception
     def remap(self, affinity=None, method='no'):
@@ -7408,6 +7595,25 @@ class BaseImage(Resource):
                                           filter, blur)
             library.MagickSetSize(self.wand, width, height)
         return r
+
+    @manipulative
+    @trap_exception
+    def roll(self, x=0, y=0):
+        """Shifts all pixels over by an X/Y offset.
+
+        :param x: Number of columns to roll over. Negative value will roll
+                  pixels from right-to-left, and positive value will roll
+                  pixels from left-to-right. Default value: ``0``.
+        :type x: :class:`numbers.Integral`
+        :param y: Number of rows to roll over. Negative value will roll
+                  pixels from bottom-to-top, and positive value will roll
+                  pixels from top-to-bottm. Default value: ``0``.
+        :type y: :class:`numbers.Integral`
+
+        .. versionadded:: 0.6.8
+        """
+        assertions.assert_integer(x=x, y=y)
+        return library.MagickRollImage(self.wand, x, y)
 
     @manipulative
     @trap_exception
@@ -8078,7 +8284,7 @@ class BaseImage(Resource):
 
     @manipulative
     @trap_exception
-    def splice(self, width=None, height=None, x=None, y=None):
+    def splice(self, width=None, height=None, x=None, y=None, gravity=None):
         """Partitions image by splicing a ``width`` x ``height`` rectangle at
         (``x``, ``y``) offset coordinate. The space inserted will be replaced
         by the :attr:`background_color` value.
@@ -8094,7 +8300,22 @@ class BaseImage(Resource):
 
         .. versionadded:: 0.5.3
         """
-        assertions.assert_integer(width=width, height=height, x=x, y=y)
+        ow, oh = self.size
+        if width is None:
+            width = ow
+        if height is None:
+            height = oh
+        assertions.assert_unsigned_integer(width=width, height=height)
+        if gravity is None:
+            if x is None:
+                x = 0
+            if y is None:
+                y = 0
+        else:
+            if x is not None or y is not None:
+                raise ValueError('x & y can not be used with gravity.')
+            y, x = self._gravity_to_offset(gravity, width, height)
+        assertions.assert_integer(x=x, y=y)
         return library.MagickSpliceImage(self.wand, width, height, x, y)
 
     @manipulative
@@ -8662,7 +8883,7 @@ class BaseImage(Resource):
                      two colors as the same. Value can be between ``0.0``,
                      and :attr:`quantum_range`.
         :type fuzz: :class:`numbers.Real`
-        :param reset_coords: Reset coordinates after triming image. Default
+        :param reset_coords: Reset coordinates after trimming image. Default
                              ``False``.
         :type reset_coords: :class:`bool`
         :param percent_background: Sets how aggressive the trim operation will
@@ -9331,7 +9552,8 @@ class Image(BaseImage):
                     channel_map = 'CMYKA'[0:shape[2]]
             else:
                 channel_map = 'R'
-        if hasattr(array, 'ctypes'):
+        strides = arr_itr.get('strides', None)
+        if hasattr(array, 'ctypes') and strides is None:
             data_ptr = array.ctypes.data_as(ctypes.c_void_p)
         elif hasattr(array, 'tobytes'):
             data_ptr = array.tobytes()
@@ -9341,6 +9563,7 @@ class Image(BaseImage):
             data_ptr, _ = arr_itr.get('data')
         storage_idx = STORAGE_TYPES.index(storage)
         height, width = shape[:2]
+        genesis()
         wand = library.NewMagickWand()
         instance = cls(BaseImage(wand))
         r = library.MagickConstituteImage(instance.wand,
@@ -9570,9 +9793,15 @@ class Image(BaseImage):
 
         .. versionadded:: 0.1.6
 
+        .. versionchanged:: 0.6.11
+           Call :c:func:`MagickSetFormat` method after
+           :c:func:`MagickSetImageFormat`. This will ensure image info, magick,
+           and filename properties are aligned.
         """
         cloned = self.clone()
         cloned.format = format
+        library.MagickSetFormat(cloned.wand,
+                                binary(format.strip().upper()))
         return cloned
 
     def data_url(self):
@@ -9666,7 +9895,6 @@ class Image(BaseImage):
                 self.image_set(b)
         self.iterator_set(op)
 
-
     def make_blob(self, format=None):
         """Makes the binary string of the image.
 
@@ -9705,6 +9933,83 @@ class Image(BaseImage):
             return blob
         else:  # pragma: no cover
             self.raise_exception()
+
+    @trap_exception
+    def montage(self, font=None, tile=None, thumbnail=None, mode='unframe',
+                frame=None):
+        """Generates a new image containing thumbnails if each previous image
+        read. ::
+
+            with Image() as img:
+                for file_path in ['first.png', 'second.png', 'third.png']:
+                    with Image(filename=file_path) as item:
+                        img.options['label'] = file_path
+                        img.image_add(item)
+                style = Font('monospace', 24, 'green')
+                img.montage(font=style, tile='3x1', thumbnail='15x15')
+                img.save(filename='montage.png')
+
+        :param font: Define font style to use when labeling each thumbnail.
+                     Thumbnail labeling will only be rendered if ``'label'``
+                     value in :attr:`options` dict is defined.
+        :type font: :class:`~wand.font.Font`
+        :param tile: The number of thunbnails per rows & column on a page.
+                     Example: ``"6x4"``.
+        :type tile: :class:`basestring`
+        :param thumbnail: Preferred image size. Montage will attempt to
+                          generate a thumbnail to match the geometry. This
+                          can also define the border size on each thumbnail.
+                          Example: ``"120x120x+4+3>"``.
+        :type thumbnail: :class:`basestring`
+        :param mode: Which effect to render. Options include ``"frame"``,
+                     ``"unframe"``, and ``"concatenate"``. Default ``"frame"``.
+        :type mode: :class:`basestring`
+        :param frame: Define ornamental boarder around each thrumbnail.
+                      The color of the frame is defined by the image's matte
+                      color. Example: ``"15x15+3+3"``.
+        :type frame: :class:`basestring`
+
+        .. versionadded:: 0.6.8
+        """
+        if font is not None:
+            if not isinstance(font, Font):
+                msg = 'font must be an instance of wand.font.Font'
+                raise TypeError(msg)
+        else:
+            font = Font('helvetica', 16, 'black')
+        if tile is not None:
+            assertions.assert_string(tile=tile)
+            tile = binary(tile)
+        if thumbnail is not None:
+            assertions.assert_string(thumbnail=thumbnail)
+            thumbnail = binary(thumbnail)
+        assertions.in_list(MONTAGE_MODES,
+                           'wand.image.MONTAGE_MODES',
+                           mode=mode)
+        mode_idx = MONTAGE_MODES.index(mode)
+        if frame is not None:
+            assertions.assert_string(frame=frame)
+            frame = binary(frame)
+        ctx_ptr = library.NewDrawingWand()
+        if font.path:
+            library.DrawSetFont(ctx_ptr, binary(font.path))
+            library.DrawSetFontFamily(ctx_ptr, binary(font.path))
+        if font.size:
+            library.DrawSetFontSize(ctx_ptr, font.size)
+        if font.color:
+            with font.color:
+                library.DrawSetFillColor(ctx_ptr, font.color.resource)
+        if font.stroke_color:
+            with font.stroke_color:
+                library.DrawSetStrokeColor(ctx_ptr, font.stroke_color.resource)
+        new_wand = library.MagickMontageImage(self.wand, ctx_ptr, tile,
+                                              thumbnail, mode_idx, frame)
+        ctx_ptr = library.DestroyDrawingWand(ctx_ptr)
+        ok = bool(new_wand)
+        if ok:
+            self.wand = new_wand
+            self.reset_sequence()
+        return ok
 
     def pseudo(self, width, height, pseudo='xc:'):
         """Creates a new image from ImageMagick's internal protocol coders.
@@ -10440,6 +10745,8 @@ class ConnectedComponentObject(object):
     .. versionadded:: 0.5.5
     .. versionchanged:: 0.6.3
         Added :attr:`merge` & :attr:`metric` for ImageMagick 7.0.10
+    .. versionchanged:: 0.6.8
+        Added :attr:`key` property for ImageMagick 7.1.0
     """
     #: (:class:`numbers.Integral`) Serialized object identifier
     #: starting at `0`.
@@ -10491,6 +10798,10 @@ class ConnectedComponentObject(object):
         if isinstance(cc_object, CCObjectInfo70A):
             self.clone_from_cc_object_info(cc_object)
             self.clone_from_extra_70A_info(cc_object)
+        if isinstance(cc_object, CCObjectInfo710):
+            self.clone_from_cc_object_info(cc_object)
+            self.clone_from_extra_70A_info(cc_object)
+            self.clone_from_extra_710_info(cc_object)
 
     @property
     def size(self):
@@ -10537,6 +10848,14 @@ class ConnectedComponentObject(object):
         self.metric = []
         for i in range(cc_object.CCMaxMetrics):
             self.metric.append(cc_object.metric[i])
+
+    def clone_from_extra_710_info(self, cc_object):
+        """Copy additional value from CCObjectInfo structure for properties
+        added to ImageMagick 7.1.0.
+
+        .. versionadded:: 0.6.8
+        """
+        self.key = cc_object.key
 
     def __repr__(self):
         fmt = ("{name}({_id}: {width}x{height}+{left}+{top} {center_x:.2f},"

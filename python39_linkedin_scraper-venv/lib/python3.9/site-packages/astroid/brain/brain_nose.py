@@ -1,22 +1,24 @@
-# Copyright (c) 2015-2016, 2018 Claudiu Popa <pcmanticore@gmail.com>
-# Copyright (c) 2016 Ceridwen <ceridwenv@gmail.com>
-
 # Licensed under the LGPL: https://www.gnu.org/licenses/old-licenses/lgpl-2.1.en.html
-# For details: https://github.com/PyCQA/astroid/blob/master/COPYING.LESSER
-
+# For details: https://github.com/PyCQA/astroid/blob/main/LICENSE
+# Copyright (c) https://github.com/PyCQA/astroid/blob/main/CONTRIBUTORS.txt
 
 """Hooks for nose library."""
 
 import re
 import textwrap
 
-import astroid
 import astroid.builder
+from astroid.brain.helpers import register_module_extender
+from astroid.exceptions import InferenceError
+from astroid.manager import AstroidManager
 
-_BUILDER = astroid.builder.AstroidBuilder(astroid.MANAGER)
+_BUILDER = astroid.builder.AstroidBuilder(AstroidManager())
 
 
-def _pep8(name, caps=re.compile("([A-Z])")):
+CAPITALS = re.compile("([A-Z])")
+
+
+def _pep8(name, caps=CAPITALS):
     return caps.sub(lambda m: "_" + m.groups()[0].lower(), name)
 
 
@@ -35,7 +37,7 @@ def _nose_tools_functions():
     )
     try:
         case = next(module["a"].infer())
-    except astroid.InferenceError:
+    except (InferenceError, StopIteration):
         return
     for method in case.methods():
         if method.name.startswith("assert") and "_" not in method.name:
@@ -69,9 +71,9 @@ def _nose_tools_trivial_transform():
     return stub
 
 
-astroid.register_module_extender(
-    astroid.MANAGER, "nose.tools.trivial", _nose_tools_trivial_transform
+register_module_extender(
+    AstroidManager(), "nose.tools.trivial", _nose_tools_trivial_transform
 )
-astroid.MANAGER.register_transform(
+AstroidManager().register_transform(
     astroid.Module, _nose_tools_transform, lambda n: n.name == "nose.tools"
 )

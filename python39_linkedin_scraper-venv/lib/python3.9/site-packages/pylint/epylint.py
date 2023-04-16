@@ -1,33 +1,13 @@
-# -*- coding: utf-8 -*-
 # mode: python; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4
 # -*- vim:fenc=utf-8:ft=python:et:sw=4:ts=4:sts=4
 
-# Copyright (c) 2008-2014 LOGILAB S.A. (Paris, FRANCE) <contact@logilab.fr>
-# Copyright (c) 2014 Jakob Normark <jakobnormark@gmail.com>
-# Copyright (c) 2014 Brett Cannon <brett@python.org>
-# Copyright (c) 2014 Manuel Vázquez Acosta <mva.led@gmail.com>
-# Copyright (c) 2014 Derek Harland <derek.harland@finq.co.nz>
-# Copyright (c) 2014 Arun Persaud <arun@nubati.net>
-# Copyright (c) 2015-2020 Claudiu Popa <pcmanticore@gmail.com>
-# Copyright (c) 2015 Mihai Balint <balint.mihai@gmail.com>
-# Copyright (c) 2015 Ionel Cristian Maries <contact@ionelmc.ro>
-# Copyright (c) 2017 hippo91 <guillaume.peillex@gmail.com>
-# Copyright (c) 2017 Daniela Plascencia <daplascen@gmail.com>
-# Copyright (c) 2018 Sushobhit <31987769+sushobhit27@users.noreply.github.com>
-# Copyright (c) 2018 Ryan McGuire <ryan@enigmacurry.com>
-# Copyright (c) 2018 thernstig <30827238+thernstig@users.noreply.github.com>
-# Copyright (c) 2018 Radostin Stoyanov <rst0git@users.noreply.github.com>
-# Copyright (c) 2019 Hugo van Kemenade <hugovk@users.noreply.github.com>
-# Copyright (c) 2019 Pierre Sassoulas <pierre.sassoulas@gmail.com>
-# Copyright (c) 2020 Damien Baty <damien.baty@polyconseil.fr>
-# Copyright (c) 2020 Anthony Sottile <asottile@umich.edu>
-
 # Licensed under the GPL: https://www.gnu.org/licenses/old-licenses/gpl-2.0.html
-# For details: https://github.com/PyCQA/pylint/blob/master/COPYING
+# For details: https://github.com/PyCQA/pylint/blob/main/LICENSE
+# Copyright (c) https://github.com/PyCQA/pylint/blob/main/CONTRIBUTORS.txt
 
 """Emacs and Flymake compatible Pylint.
 
-This script is for integration with emacs and is compatible with flymake mode.
+This script is for integration with Emacs and is compatible with Flymake mode.
 
 epylint walks out of python packages before invoking pylint. This avoids
 reporting import errors that occur when a module within a package uses the
@@ -49,33 +29,43 @@ For example:
 
        pylint a/c/y.py
 
-   - As this script will be invoked by emacs within the directory of the file
+   - As this script will be invoked by Emacs within the directory of the file
      we are checking we need to go out of it to avoid these false positives.
-
 
 You may also use py_run to run pylint with desired options and get back (or not)
 its output.
 """
+
+from __future__ import annotations
+
 import os
 import shlex
 import sys
+import warnings
+from collections.abc import Sequence
 from io import StringIO
-from os import path as osp
 from subprocess import PIPE, Popen
+from typing import NoReturn, TextIO, overload
+
+if sys.version_info >= (3, 8):
+    from typing import Literal
+else:
+    from typing_extensions import Literal
 
 
-def _get_env():
-    """Extracts the environment PYTHONPATH and appends the current sys.path to
-    those."""
+def _get_env() -> dict[str, str]:
+    """Extracts the environment PYTHONPATH and appends the current 'sys.path'
+    to it.
+    """
     env = dict(os.environ)
     env["PYTHONPATH"] = os.pathsep.join(sys.path)
     return env
 
 
-def lint(filename, options=()):
+def lint(filename: str, options: Sequence[str] = ()) -> int:
     """Pylint the given file.
 
-    When run from emacs we will be in the directory of a file, and passed its
+    When run from Emacs we will be in the directory of a file, and passed its
     filename.  If this file is part of a package and is trying to import other
     modules from within its own package or another package rooted in a directory
     below it, pylint will classify it as a failed import.
@@ -89,13 +79,15 @@ def lint(filename, options=()):
     the tree)
     """
     # traverse downwards until we are out of a python package
-    full_path = osp.abspath(filename)
-    parent_path = osp.dirname(full_path)
-    child_path = osp.basename(full_path)
+    full_path = os.path.abspath(filename)
+    parent_path = os.path.dirname(full_path)
+    child_path = os.path.basename(full_path)
 
-    while parent_path != "/" and osp.exists(osp.join(parent_path, "__init__.py")):
-        child_path = osp.join(osp.basename(parent_path), child_path)
-        parent_path = osp.dirname(parent_path)
+    while parent_path != "/" and os.path.exists(
+        os.path.join(parent_path, "__init__.py")
+    ):
+        child_path = os.path.join(os.path.basename(parent_path), child_path)
+        parent_path = os.path.dirname(parent_path)
 
     # Start pylint
     # Ensure we use the python and pylint associated with the running epylint
@@ -111,27 +103,52 @@ def lint(filename, options=()):
         ]
         + list(options)
     )
-    process = Popen(
+
+    with Popen(
         cmd, stdout=PIPE, cwd=parent_path, env=_get_env(), universal_newlines=True
-    )
+    ) as process:
+        for line in process.stdout:  # type: ignore[union-attr]
+            # remove pylintrc warning
+            if line.startswith("No config file found"):
+                continue
 
-    for line in process.stdout:
-        # remove pylintrc warning
-        if line.startswith("No config file found"):
-            continue
+            # modify the file name that's put out to reverse the path traversal we made
+            parts = line.split(":")
+            if parts and parts[0] == child_path:
+                line = ":".join([filename] + parts[1:])
+            print(line, end=" ")
 
-        # modify the file name thats output to reverse the path traversal we made
-        parts = line.split(":")
-        if parts and parts[0] == child_path:
-            line = ":".join([filename] + parts[1:])
-        print(line, end=" ")
-
-    process.wait()
-    return process.returncode
+        process.wait()
+        return process.returncode
 
 
-def py_run(command_options="", return_std=False, stdout=None, stderr=None):
-    """Run pylint from python
+@overload
+def py_run(
+    command_options: str = ...,
+    return_std: Literal[False] = ...,
+    stdout: TextIO | int | None = ...,
+    stderr: TextIO | int | None = ...,
+) -> None:
+    ...
+
+
+@overload
+def py_run(
+    command_options: str,
+    return_std: Literal[True],
+    stdout: TextIO | int | None = ...,
+    stderr: TextIO | int | None = ...,
+) -> tuple[StringIO, StringIO]:
+    ...
+
+
+def py_run(
+    command_options: str = "",
+    return_std: bool = False,
+    stdout: TextIO | int | None = None,
+    stderr: TextIO | int | None = None,
+) -> tuple[StringIO, StringIO] | None:
+    """Run pylint from python.
 
     ``command_options`` is a string containing ``pylint`` command line options;
     ``return_std`` (boolean) indicates return of created standard output
@@ -151,6 +168,11 @@ def py_run(command_options="", return_std=False, stdout=None, stderr=None):
     To silently run Pylint on a module, and get its standard output and error:
         >>> (pylint_stdout, pylint_stderr) = py_run( 'module_name.py', True)
     """
+    warnings.warn(
+        "'epylint' will be removed in pylint 3.0, use https://github.com/emacsorphanage/pylint instead.",
+        DeprecationWarning,
+        stacklevel=2,
+    )
     # Detect if we use Python as executable or not, else default to `python`
     executable = sys.executable if "python" in sys.executable else "python"
 
@@ -161,40 +183,41 @@ def py_run(command_options="", return_std=False, stdout=None, stderr=None):
 
     # Providing standard output and/or error if not set
     if stdout is None:
-        if return_std:
-            stdout = PIPE
-        else:
-            stdout = sys.stdout
+        stdout = PIPE if return_std else sys.stdout
     if stderr is None:
-        if return_std:
-            stderr = PIPE
-        else:
-            stderr = sys.stderr
-    # Call pylint in a subprocess
-    process = Popen(
+        stderr = PIPE if return_std else sys.stderr
+    # Call pylint in a sub-process
+    with Popen(
         cli,
         shell=False,
         stdout=stdout,
         stderr=stderr,
         env=_get_env(),
         universal_newlines=True,
+    ) as process:
+        proc_stdout, proc_stderr = process.communicate()
+        # Return standard output and error
+        if return_std:
+            return StringIO(proc_stdout), StringIO(proc_stderr)
+        return None
+
+
+def Run(argv: Sequence[str] | None = None) -> NoReturn:
+    warnings.warn(
+        "'epylint' will be removed in pylint 3.0, use https://github.com/emacsorphanage/pylint instead.",
+        DeprecationWarning,
+        stacklevel=2,
     )
-    proc_stdout, proc_stderr = process.communicate()
-    # Return standard output and error
-    if return_std:
-        return StringIO(proc_stdout), StringIO(proc_stderr)
-    return None
-
-
-def Run():
-    if len(sys.argv) == 1:
-        print("Usage: %s <filename> [options]" % sys.argv[0])
+    if not argv and len(sys.argv) == 1:
+        print(f"Usage: {sys.argv[0]} <filename> [options]")
         sys.exit(1)
-    elif not osp.exists(sys.argv[1]):
-        print("%s does not exist" % sys.argv[1])
+
+    argv = argv or sys.argv[1:]
+    if not os.path.exists(argv[0]):
+        print(f"{argv[0]} does not exist")
         sys.exit(1)
     else:
-        sys.exit(lint(sys.argv[1], sys.argv[2:]))
+        sys.exit(lint(argv[0], argv[1:]))
 
 
 if __name__ == "__main__":

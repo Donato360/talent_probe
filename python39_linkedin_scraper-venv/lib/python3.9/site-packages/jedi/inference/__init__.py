@@ -90,7 +90,7 @@ class InferenceState:
         self.compiled_subprocess = environment.get_inference_state_subprocess(self)
         self.grammar = environment.get_grammar()
 
-        self.latest_grammar = parso.load_grammar(version='3.7')
+        self.latest_grammar = parso.load_grammar(version='3.10')
         self.memoize_cache = {}  # for memoize decorators
         self.module_cache = imports.ModuleCache()  # does the job of `sys.modules`.
         self.stub_module_cache = {}  # Dict[Tuple[str, ...], Optional[ModuleValue]]
@@ -181,8 +181,6 @@ class InferenceState:
 
     def parse_and_get_code(self, code=None, path=None,
                            use_latest_grammar=False, file_io=None, **kwargs):
-        if path is not None:
-            path = str(path)
         if code is None:
             if file_io is None:
                 file_io = FileIO(path)

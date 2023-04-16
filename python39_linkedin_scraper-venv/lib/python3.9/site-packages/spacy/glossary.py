@@ -1,12 +1,12 @@
-# coding: utf8
-from __future__ import unicode_literals
+import warnings
+from .errors import Warnings
 
 
 def explain(term):
     """Get a description for a given POS tag, dependency label or entity type.
 
-    term (unicode): The term to explain.
-    RETURNS (unicode): The explanation, or `None` if not found in the glossary.
+    term (str): The term to explain.
+    RETURNS (str): The explanation, or `None` if not found in the glossary.
 
     EXAMPLE:
         >>> spacy.explain(u'NORP')
@@ -15,6 +15,8 @@ def explain(term):
     """
     if term in GLOSSARY:
         return GLOSSARY[term]
+    else:
+        warnings.warn(Warnings.W118.format(term=term))
 
 
 GLOSSARY = {
@@ -62,7 +64,7 @@ GLOSSARY = {
     "FW": "foreign word",
     "HYPH": "punctuation mark, hyphen",
     "IN": "conjunction, subordinating or preposition",
-    "JJ": "adjective",
+    "JJ": "adjective (English), other noun-modifier (Chinese)",
     "JJR": "adjective, comparative",
     "JJS": "adjective, superlative",
     "LS": "list item marker",
@@ -92,13 +94,14 @@ GLOSSARY = {
     "WP": "wh-pronoun, personal",
     "WP$": "wh-pronoun, possessive",
     "WRB": "wh-adverb",
-    "SP": "space",
+    "SP": "space (English), sentence-final particle (Chinese)",
     "ADD": "email",
     "NFP": "superfluous punctuation",
     "GW": "additional word in multi-word expression",
     "XX": "unknown",
     "BES": 'auxiliary "be"',
     "HVS": 'forms of "have"',
+    "_SP": "whitespace",
     # POS Tags (German)
     # TIGER Treebank
     # http://www.ims.uni-stuttgart.de/forschung/ressourcen/korpora/TIGERCorpus/annotation/tiger_introduction.pdf
@@ -156,6 +159,40 @@ GLOSSARY = {
     "VVIZU": 'infinitive with "zu", full',
     "VVPP": "perfect participle, full",
     "XY": "non-word containing non-letter",
+    # POS Tags (Chinese)
+    # OntoNotes / Chinese Penn Treebank
+    # https://repository.upenn.edu/cgi/viewcontent.cgi?article=1039&context=ircs_reports
+    "AD": "adverb",
+    "AS": "aspect marker",
+    "BA": "把 in ba-construction",
+    # "CD": "cardinal number",
+    "CS": "subordinating conjunction",
+    "DEC": "的 in a relative clause",
+    "DEG": "associative 的",
+    "DER": "得 in V-de const. and V-de-R",
+    "DEV": "地 before VP",
+    "ETC": "for words 等, 等等",
+    # "FW": "foreign words"
+    "IJ": "interjection",
+    # "JJ": "other noun-modifier",
+    "LB": "被 in long bei-const",
+    "LC": "localizer",
+    "M": "measure word",
+    "MSP": "other particle",
+    # "NN": "common noun",
+    "NR": "proper noun",
+    "NT": "temporal noun",
+    "OD": "ordinal number",
+    "ON": "onomatopoeia",
+    "P": "preposition excluding 把 and 被",
+    "PN": "pronoun",
+    "PU": "punctuation",
+    "SB": "被 in short bei-const",
+    # "SP": "sentence-final particle",
+    "VA": "predicative adjective",
+    "VC": "是 (copula)",
+    "VE": "有 as the main verb",
+    "VV": "other verb",
     # Noun chunks
     "NP": "noun phrase",
     "PP": "prepositional phrase",
@@ -236,6 +273,7 @@ GLOSSARY = {
     "relcl": "relative clause modifier",
     "reparandum": "overridden disfluency",
     "root": "root",
+    "ROOT": "root",
     "vocative": "vocative",
     "xcomp": "open clausal complement",
     # Dependency labels (German)
@@ -278,7 +316,6 @@ GLOSSARY = {
     "rc": "relative clause",
     "re": "repeated element",
     "rs": "reported speech",
-    "sb": "subject",
     "sb": "subject",
     "sbp": "passivized subject (PP)",
     "sp": "subject or predicate",

@@ -3,6 +3,7 @@
 try:
     from parameters import username, password
     from selenium import webdriver
+    from selenium.webdriver.chrome.service import Service
     from webdriver_manager.chrome import ChromeDriverManager
     import sys
     from selenium_stealth import stealth
@@ -28,7 +29,7 @@ def main():
         options.add_experimental_option('useAutomationExtension', False)
         global driver
 
-        driver = webdriver.Chrome(ChromeDriverManager().install(), options=options)
+        driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=options)
 
         stealth(driver,
             languages=["en-US", "en"],

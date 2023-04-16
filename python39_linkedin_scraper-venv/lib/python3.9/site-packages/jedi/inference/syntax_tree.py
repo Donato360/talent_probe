@@ -2,6 +2,7 @@
 Functions inferring the syntax tree.
 """
 import copy
+import itertools
 
 from parso.python import tree
 
@@ -515,10 +516,20 @@ def _literals_to_types(inference_state, result):
 
 def _infer_comparison(context, left_values, operator, right_values):
     state = context.inference_state
+    if isinstance(operator, str):
+        operator_str = operator
+    else:
+        operator_str = str(operator.value)
     if not left_values or not right_values:
         # illegal slices e.g. cause left/right_result to be None
         result = (left_values or NO_VALUES) | (right_values or NO_VALUES)
         return _literals_to_types(state, result)
+    elif operator_str == "|" and all(
+        value.is_class() or value.is_compiled()
+        for value in itertools.chain(left_values, right_values)
+    ):
+        # ^^^ A naive hack for PEP 604
+        return ValueSet.from_sets((left_values, right_values))
     else:
         # I don't think there's a reasonable chance that a string
         # operation is still correct, once we pass something like six
@@ -738,6 +749,13 @@ def tree_name_to_values(inference_state, context, tree_name):
         types = infer_expr_stmt(context, node, tree_name)
     elif typ == 'with_stmt':
         value_managers = context.infer_node(node.get_test_node_from_name(tree_name))
+        if node.parent.type == 'async_stmt':
+            # In the case of `async with` statements, we need to
+            # first get the coroutine from the `__aenter__` method,
+            # then "unwrap" via the `__await__` method
+            enter_methods = value_managers.py__getattribute__('__aenter__')
+            coro = enter_methods.execute_with_values()
+            return coro.py__await__().py__stop_iteration_returns()
         enter_methods = value_managers.py__getattribute__('__enter__')
         return enter_methods.execute_with_values()
     elif typ in ('import_from', 'import_name'):

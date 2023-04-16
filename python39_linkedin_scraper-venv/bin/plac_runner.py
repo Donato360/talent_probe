@@ -1,4 +1,4 @@
-#!/Volumes/SAM_Backup/data_scraping/python39_linkedin_scraper-venv/bin/python3
+#!/Volumes/Seagate Bac/web_scrapping/linkedIn_data_scraper/python39_linkedin_scraper-venv/bin/python3
 from __future__ import with_statement
 import os
 import sys

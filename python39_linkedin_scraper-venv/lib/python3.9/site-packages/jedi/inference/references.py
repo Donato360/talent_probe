@@ -4,13 +4,13 @@ import re
 from parso import python_bytes_to_unicode
 
 from jedi.debug import dbg
-from jedi.file_io import KnownContentFileIO
+from jedi.file_io import KnownContentFileIO, FolderIO
 from jedi.inference.names import SubModuleName
 from jedi.inference.imports import load_module_from_path
 from jedi.inference.filters import ParserTreeFilter
 from jedi.inference.gradual.conversion import convert_names
 
-_IGNORE_FOLDERS = ('.tox', '.venv', 'venv', '__pycache__')
+_IGNORE_FOLDERS = ('.tox', '.venv', '.mypy_cache', 'venv', '__pycache__')
 
 _OPENED_FILE_LIMIT = 2000
 """
@@ -127,10 +127,10 @@ def find_references(module_context, tree_name, only_in_module=False):
 
     module_contexts = [module_context]
     if not only_in_module:
-        module_contexts.extend(
-            m for m in set(d.get_root_context() for d in found_names)
-            if m != module_context and m.tree_node is not None
-        )
+        for m in set(d.get_root_context() for d in found_names):
+            if m != module_context and m.tree_node is not None \
+                    and inf.project.path in m.py__file__().parents:
+                module_contexts.append(m)
     # For param no search for other modules is necessary.
     if only_in_module or any(n.api_type == 'param' for n in found_names):
         potential_modules = module_contexts
@@ -180,26 +180,34 @@ def _check_fs(inference_state, file_io, regex):
     return m.as_context()
 
 
-def gitignored_lines(folder_io, file_io):
-    ignored_paths = set()
-    ignored_names = set()
+def gitignored_paths(folder_io, file_io):
+    ignored_paths_abs = set()
+    ignored_paths_rel = set()
+
     for l in file_io.read().splitlines():
-        if not l or l.startswith(b'#'):
+        if not l or l.startswith(b'#') or l.startswith(b'!') or b'*' in l:
             continue
 
-        p = l.decode('utf-8', 'ignore')
-        if p.startswith('/'):
-            name = p[1:]
-            if name.endswith(os.path.sep):
-                name = name[:-1]
-            ignored_paths.add(os.path.join(folder_io.path, name))
+        p = l.decode('utf-8', 'ignore').rstrip('/')
+        if '/' in p:
+            name = p.lstrip('/')
+            ignored_paths_abs.add(os.path.join(folder_io.path, name))
         else:
-            ignored_names.add(p)
-    return ignored_paths, ignored_names
+            name = p
+            ignored_paths_rel.add((folder_io.path, name))
+
+    return ignored_paths_abs, ignored_paths_rel
+
+
+def expand_relative_ignore_paths(folder_io, relative_paths):
+    curr_path = folder_io.path
+    return {os.path.join(curr_path, p[1]) for p in relative_paths if curr_path.startswith(p[0])}
 
 
 def recurse_find_python_folders_and_files(folder_io, except_paths=()):
     except_paths = set(except_paths)
+    except_paths_relative = set()
+
     for root_folder_io, folder_ios, file_ios in folder_io.walk():
         # Delete folders that we don't want to iterate over.
         for file_io in file_ios:
@@ -209,14 +217,21 @@ def recurse_find_python_folders_and_files(folder_io, except_paths=()):
                     yield None, file_io
 
             if path.name == '.gitignore':
-                ignored_paths, ignored_names = \
-                    gitignored_lines(root_folder_io, file_io)
-                except_paths |= ignored_paths
+                ignored_paths_abs, ignored_paths_rel = gitignored_paths(
+                    root_folder_io, file_io
+                )
+                except_paths |= ignored_paths_abs
+                except_paths_relative |= ignored_paths_rel
+
+        except_paths_relative_expanded = expand_relative_ignore_paths(
+            root_folder_io, except_paths_relative
+        )
 
         folder_ios[:] = [
             folder_io
             for folder_io in folder_ios
             if folder_io.path not in except_paths
+            and folder_io.path not in except_paths_relative_expanded
             and folder_io.get_base_name() not in _IGNORE_FOLDERS
         ]
         for folder_io in folder_ios:
@@ -250,6 +265,11 @@ def _find_python_files_in_sys_path(inference_state, module_contexts):
             folder_io = folder_io.get_parent_folder()
 
 
+def _find_project_modules(inference_state, module_contexts):
+    except_ = [m.py__file__() for m in module_contexts]
+    yield from recurse_find_python_files(FolderIO(inference_state.project.path), except_)
+
+
 def get_module_contexts_containing_name(inference_state, module_contexts, name,
                                         limit_reduction=1):
     """
@@ -269,17 +289,21 @@ def get_module_contexts_containing_name(inference_state, module_contexts, name,
     if len(name) <= 2:
         return
 
-    file_io_iterator = _find_python_files_in_sys_path(inference_state, module_contexts)
+    # Currently not used, because there's only `scope=project` and `scope=file`
+    # At the moment there is no such thing as `scope=sys.path`.
+    # file_io_iterator = _find_python_files_in_sys_path(inference_state, module_contexts)
+    file_io_iterator = _find_project_modules(inference_state, module_contexts)
     yield from search_in_file_ios(inference_state, file_io_iterator, name,
                                   limit_reduction=limit_reduction)
 
 
-def search_in_file_ios(inference_state, file_io_iterator, name, limit_reduction=1):
+def search_in_file_ios(inference_state, file_io_iterator, name,
+                       limit_reduction=1, complete=False):
     parse_limit = _PARSED_FILE_LIMIT / limit_reduction
     open_limit = _OPENED_FILE_LIMIT / limit_reduction
     file_io_count = 0
     parsed_file_count = 0
-    regex = re.compile(r'\b' + re.escape(name) + r'\b')
+    regex = re.compile(r'\b' + re.escape(name) + (r'' if complete else r'\b'))
     for file_io in file_io_iterator:
         file_io_count += 1
         m = _check_fs(inference_state, file_io, regex)

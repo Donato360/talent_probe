@@ -75,17 +75,19 @@ class ClassName(TreeNameDefinition):
 
     @property
     def api_type(self):
-        if self.tree_name is not None:
+        type_ = super().api_type
+        if type_ == 'function':
             definition = self.tree_name.get_definition()
-            if definition.type == 'funcdef':
-                if function_is_property(definition):
-                    # This essentially checks if there is an @property before
-                    # the function. @property could be something different, but
-                    # any programmer that redefines property as something that
-                    # is not really a property anymore, should be shot. (i.e.
-                    # this is a heuristic).
-                    return 'property'
-        return super().api_type
+            if definition is None:
+                return type_
+            if function_is_property(definition):
+                # This essentially checks if there is an @property before
+                # the function. @property could be something different, but
+                # any programmer that redefines property as something that
+                # is not really a property anymore, should be shot. (i.e.
+                # this is a heuristic).
+                return 'property'
+        return type_
 
 
 class ClassFilter(ParserTreeFilter):
@@ -114,25 +116,10 @@ class ClassFilter(ParserTreeFilter):
         while node is not None:
             if node == self._parser_scope or node == self.parent_context:
                 return True
-            node = get_cached_parent_scope(self._used_names, node)
+            node = get_cached_parent_scope(self._parso_cache_node, node)
         return False
 
     def _access_possible(self, name):
-        # Filter for ClassVar variables
-        # TODO this is not properly done, yet. It just checks for the string
-        # ClassVar in the annotation, which can be quite imprecise. If we
-        # wanted to do this correct, we would have to infer the ClassVar.
-        if not self._is_instance:
-            expr_stmt = name.get_definition()
-            if expr_stmt is not None and expr_stmt.type == 'expr_stmt':
-                annassign = expr_stmt.children[1]
-                if annassign.type == 'annassign':
-                    # If there is an =, the variable is obviously also
-                    # defined on the class.
-                    if 'ClassVar' not in annassign.children[1].get_code() \
-                            and '=' not in annassign.children:
-                        return False
-
         # Filter for name mangling of private variables like __foo
         return not name.value.startswith('__') or name.value.endswith('__') \
             or self._equals_origin_scope()

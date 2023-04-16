@@ -1,5 +1,4 @@
-from bs4 import BeautifulSoup, NavigableString, Tag
-from time import sleep
+from bs4 import BeautifulSoup, NavigableString
 from helpers import Helper
 import copy
 
@@ -168,27 +167,26 @@ class ProfileExperience(Helper):
                         self.experienceItem['company']['location']['country'] = ','.join(
                             locations_general['countries'])
 
-        # print('company_name: {}'.format(company_name))
-        # print('city: {}'.format(
-        #     self.experienceItem['company']['location']['city']))
-        # print('region: {}'.format(
-        #     self.experienceItem['company']['location']['region']))
-        # print('country: {}'.format(
-        #     self.experienceItem['company']['location']['country']))
+        print('company_name: {}'.format(company_name))
+        print('city: {}'.format(
+            self.experienceItem['company']['location']['city']))
+        print('region: {}'.format(
+            self.experienceItem['company']['location']['region']))
+        print('country: {}'.format(
+            self.experienceItem['company']['location']['country']))
 
-        # print()
+        print(experience)
 
-        for li_tag in experience.find('ul', {'class': 'pvs-list'}):
+        for li_tag in experience.find('ul', class_='pvs-list'):
 
             if isinstance(li_tag, NavigableString):
                 continue
 
             self.resetExperienceItem()
 
-            for span_tag in li_tag.find_all('li', {'class': 'pvs-list__paged-list-item'}):
+            for span_tag in li_tag.find_all('li', class_='pvs-list__paged-list-item'):
                 experience_item_array = []
-                experience_2 = span_tag.find_all(
-                    'span', attrs={'aria-hidden': 'true'})
+                experience_2 = span_tag.find_all('span', attrs={'aria-hidden': 'true'})
 
                 for index, text in enumerate(experience_2):
                     experience_item_array.append(text.getText())
@@ -578,7 +576,6 @@ class ProfileExperience(Helper):
         self.processProfileLink()
 
         self.driver.get(self.profileLink)
-        # sleep(2)
 
         # Get scroll height after first time page load
         last_height = self.driver.execute_script(
@@ -596,15 +593,13 @@ class ProfileExperience(Helper):
                 break
             last_height = new_height
 
-        source = BeautifulSoup(self.driver.page_source, "html.parser")
+        source = BeautifulSoup(self.driver.page_source, 'lxml')
 
         profile_dictionary = {}
         time_key_words_set = {'yrs', 'yr', 'mos', 'mo'}
 
         try:
-            experiences = source.find_all(
-                'li', {"class": "pvs-list__paged-list-item artdeco-list__item pvs-list__item--line-separated"})
-            # sleep(1)
+            experiences = source.find_all('li', class_='pvs-list__paged-list-item artdeco-list__item pvs-list__item--line-separated')
         except:
             experiences = None
 
@@ -615,8 +610,7 @@ class ProfileExperience(Helper):
                 # print('index: {}'.format(index))
                 # print()
 
-                experience_1 = experience.find_all(
-                    'span', attrs={'aria-hidden': 'true'})
+                experience_1 = experience.find_all('span', attrs={'aria-hidden': 'true'})
                 experience_item_array = []
 
                 for index, text in enumerate(experience_1):

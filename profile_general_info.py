@@ -1,5 +1,4 @@
 from  bs4 import BeautifulSoup
-from time import sleep
 
 SCROLL_PAUSE_TIME = 1
 
@@ -10,7 +9,6 @@ class ProfileGeneralInfo:
     
     def getGeneralInfo(self):
         self.driver.get(self.profileLink)
-        # sleep(1)
 
         # Get scroll height after first time page load
         last_height = self.driver.execute_script("return document.body.scrollHeight")
@@ -25,7 +23,7 @@ class ProfileGeneralInfo:
                 break
             last_height = new_height
         
-        source = BeautifulSoup(self.driver.page_source, "html.parser")
+        source = BeautifulSoup(self.driver.page_source, 'lxml')
 
         profile_dictionary = {}
 
@@ -83,15 +81,15 @@ class ProfileGeneralInfo:
         profile_dictionary['job_title'] = title
 
         try:
-            location = name_info.find('span' , {'class': 'text-body-small inline t-black--light break-words'}).get_text().strip()
+            location = name_info.find('span' , class_='text-body-small inline t-black--light break-words').get_text().strip()
         except:
             location = None
 
         profile_dictionary['location_name'] = location
 
         try:
-            about_section = source.find("div", {"id": "about"}).find_parent('section')
-            summary = about_section.find_all('span' , {'class': 'visually-hidden'})[1].get_text().strip()
+            about_section = source.find('div', {'id': 'about'}).find_parent('section')
+            summary = about_section.find_all('span' , class_='visually-hidden')[1].get_text().strip()
         except:
             summary = 'data not found'
 

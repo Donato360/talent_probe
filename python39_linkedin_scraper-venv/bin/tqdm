@@ -1,4 +1,6 @@
-#!/Volumes/SAM_Backup/data_scraping/python39_linkedin_scraper-venv/bin/python3
+#!/bin/sh
+'''exec' "/Volumes/Seagate Bac/web_scrapping/linkedIn_data_scraper/python39_linkedin_scraper-venv/bin/python3" "$0" "$@"
+' '''
 # -*- coding: utf-8 -*-
 import re
 import sys

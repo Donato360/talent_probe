@@ -1,5 +1,4 @@
 from  bs4 import BeautifulSoup
-from time import sleep
 from helpers import Helper
 
 SCROLL_PAUSE_TIME = 1
@@ -81,7 +80,6 @@ class ProfileEducation(Helper):
         self.processProfileLink()
 
         self.driver.get(self.profileLink)
-        # sleep(2)
 
         # Get scroll height after first time page load
         last_height = self.driver.execute_script("return document.body.scrollHeight")
@@ -89,24 +87,20 @@ class ProfileEducation(Helper):
             # Scroll down to bottom
             self.driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
             # Wait to load page / use a better technique like `waitforpageload` etc., if possible
-            # sleep(3)
             # Calculate new scroll height and compare with last scroll height
             new_height = self.driver.execute_script("return document.body.scrollHeight")
             if new_height == last_height:
                 break
             last_height = new_height
         
-        source = BeautifulSoup(self.driver.page_source, "html.parser")
+        source = BeautifulSoup(self.driver.page_source, 'lxml')
 
         profile_dictionary = {}
 
         try:
-            educations = source.find_all('li', {"class": "pvs-list__paged-list-item artdeco-list__item pvs-list__item--line-separated"})
-            # sleep(1)
+            educations = source.find_all('li', class_='pvs-list__paged-list-item artdeco-list__item pvs-list__item--line-separated')
         except:
             educations = None
-
-        # print('education length: {}'.format(len(educations)))
         
         if educations:
             for index, education in enumerate(educations):

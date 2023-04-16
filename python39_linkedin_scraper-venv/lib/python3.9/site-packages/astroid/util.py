@@ -1,16 +1,21 @@
-# Copyright (c) 2015-2018 Claudiu Popa <pcmanticore@gmail.com>
-# Copyright (c) 2015-2016 Ceridwen <ceridwenv@gmail.com>
-# Copyright (c) 2018 Bryce Guinta <bryce.paul.guinta@gmail.com>
-# Copyright (c) 2018 Nick Drozd <nicholasdrozd@gmail.com>
-
 # Licensed under the LGPL: https://www.gnu.org/licenses/old-licenses/lgpl-2.1.en.html
-# For details: https://github.com/PyCQA/astroid/blob/master/COPYING.LESSER
+# For details: https://github.com/PyCQA/astroid/blob/main/LICENSE
+# Copyright (c) https://github.com/PyCQA/astroid/blob/main/CONTRIBUTORS.txt
 
-import warnings
-from itertools import islice
+
+from __future__ import annotations
 
 import importlib
+import sys
+import warnings
+from typing import Any
+
 import lazy_object_proxy
+
+if sys.version_info >= (3, 8):
+    from typing import Final, Literal
+else:
+    from typing_extensions import Final, Literal
 
 
 def lazy_descriptor(obj):
@@ -21,22 +26,24 @@ def lazy_descriptor(obj):
     return DescriptorProxy(obj)
 
 
-def lazy_import(module_name):
+def lazy_import(module_name: str) -> lazy_object_proxy.Proxy:
     return lazy_object_proxy.Proxy(
         lambda: importlib.import_module("." + module_name, "astroid")
     )
 
 
-@object.__new__
-class Uninferable:
-    """Special inference object, which is returned when inference fails."""
+class UninferableBase:
+    """Special inference object, which is returned when inference fails.
 
-    def __repr__(self):
+    This is meant to be used as a singleton. Use astroid.util.Uninferable to access it.
+    """
+
+    def __repr__(self) -> Literal["Uninferable"]:
         return "Uninferable"
 
     __str__ = __repr__
 
-    def __getattribute__(self, name):
+    def __getattribute__(self, name: str) -> Any:
         if name == "next":
             raise AttributeError("next method should not be called")
         if name.startswith("__") and name.endswith("__"):
@@ -45,21 +52,23 @@ class Uninferable:
             return object.__getattribute__(self, name)
         return self
 
-    def __call__(self, *args, **kwargs):
+    def __call__(self, *args: Any, **kwargs: Any) -> UninferableBase:
         return self
 
-    def __bool__(self):
+    def __bool__(self) -> Literal[False]:
         return False
 
     __nonzero__ = __bool__
 
     def accept(self, visitor):
-        func = getattr(visitor, "visit_uninferable")
-        return func(self)
+        return visitor.visit_uninferable(self)
+
+
+Uninferable: Final = UninferableBase()
 
 
 class BadOperationMessage:
-    """Object which describes a TypeError occurred somewhere in the inference chain
+    """Object which describes a TypeError occurred somewhere in the inference chain.
 
     This is not an exception, but a container object which holds the types and
     the error which occurred.
@@ -80,14 +89,13 @@ class BadUnaryOperationMessage(BadOperationMessage):
         return helpers.object_type
 
     def _object_type(self, obj):
-        # pylint: disable=not-callable; can't infer lazy_import
         objtype = self._object_type_helper(obj)
-        if objtype is Uninferable:
+        if isinstance(objtype, UninferableBase):
             return None
 
         return objtype
 
-    def __str__(self):
+    def __str__(self) -> str:
         if hasattr(self.operand, "name"):
             operand_type = self.operand.name
         else:
@@ -110,12 +118,12 @@ class BadBinaryOperationMessage(BadOperationMessage):
         self.right_type = right_type
         self.op = op
 
-    def __str__(self):
+    def __str__(self) -> str:
         msg = "unsupported operand type(s) for {}: {!r} and {!r}"
         return msg.format(self.op, self.left_type.name, self.right_type.name)
 
 
-def _instancecheck(cls, other):
+def _instancecheck(cls, other) -> bool:
     wrapped = cls.__wrapped__
     other_cls = other.__class__
     is_instance_of = wrapped is other_cls or issubclass(other_cls, wrapped)
@@ -141,24 +149,14 @@ def proxy_alias(alias_name, node_type):
     return proxy(lambda: node_type)
 
 
-def limit_inference(iterator, size):
-    """Limit inference amount.
+def check_warnings_filter() -> bool:
+    """Return True if any other than the default DeprecationWarning filter is enabled.
 
-    Limit inference amount to help with performance issues with
-    exponentially exploding possible results.
-
-    :param iterator: Inference generator to limit
-    :type iterator: Iterator(NodeNG)
-
-    :param size: Maximum mount of nodes yielded plus an
-        Uninferable at the end if limit reached
-    :type size: int
-
-    :yields: A possibly modified generator
-    :rtype param: Iterable
+    https://docs.python.org/3/library/warnings.html#default-warning-filter
     """
-    yield from islice(iterator, size)
-    has_more = next(iterator, False)
-    if has_more is not False:
-        yield Uninferable
-        return
+    return any(
+        issubclass(DeprecationWarning, filter[2])
+        and filter[0] != "ignore"
+        and filter[3] != "__main__"
+        for filter in warnings.filters
+    )

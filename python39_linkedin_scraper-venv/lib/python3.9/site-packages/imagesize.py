@@ -1,6 +1,15 @@
+import io
+import os
 import re
 import struct
 from xml.etree import ElementTree
+
+
+__all__ = ["get", "getDPI", "__version__"]
+
+
+__version__ = "1.4.1"
+
 
 _UNIT_KM = -3
 _UNIT_100M = -2
@@ -55,41 +64,46 @@ def _convertToDPI(density, unit):
 
 
 def _convertToPx(value):
-    matched = re.match(r"(\d+)(?:\.\d)?([a-z]*)$", value)
+    matched = re.match(r"(\d+(?:\.\d+)?)?([a-z]*)$", value)
     if not matched:
         raise ValueError("unknown length value: %s" % value)
-    else:
-        length, unit = matched.groups()
-        if unit == "":
-            return int(length)
-        elif unit == "cm":
-            return int(length) * 96 / 2.54
-        elif unit == "mm":
-            return int(length) * 96 / 2.54 / 10
-        elif unit == "in":
-            return int(length) * 96
-        elif unit == "pc":
-            return int(length) * 96 / 6
-        elif unit == "pt":
-            return int(length) * 96 / 6
-        elif unit == "px":
-            return int(length)
-        else:
-            raise ValueError("unknown unit type: %s" % unit)
+
+    length, unit = matched.groups()
+    if unit == "":
+        return float(length)
+    elif unit == "cm":
+        return float(length) * 96 / 2.54
+    elif unit == "mm":
+        return float(length) * 96 / 2.54 / 10
+    elif unit == "in":
+        return float(length) * 96
+    elif unit == "pc":
+        return float(length) * 96 / 6
+    elif unit == "pt":
+        return float(length) * 96 / 6
+    elif unit == "px":
+        return float(length)
+
+    raise ValueError("unknown unit type: %s" % unit)
 
 
 def get(filepath):
     """
     Return (width, height) for a given img file content
     no requirements
-    :type filepath: Union[str, pathlib.Path]
+    :type filepath: Union[bytes, str, pathlib.Path]
     :rtype Tuple[int, int]
     """
     height = -1
     width = -1
 
-    with open(str(filepath), 'rb') as fhandle:
-        head = fhandle.read(24)
+    if isinstance(filepath, io.BytesIO):  # file-like object
+        fhandle = filepath
+    else:
+        fhandle = open(filepath, 'rb')
+
+    try:
+        head = fhandle.read(31)
         size = len(head)
         # handle GIFs
         if size >= 10 and head[:6] in (b'GIF87a', b'GIF89a'):
@@ -127,7 +141,7 @@ def get(filepath):
                 # We are at a SOFn block
                 fhandle.seek(1, 1)  # Skip `precision' byte.
                 height, width = struct.unpack('>HH', fhandle.read(4))
-            except struct.error:
+            except (struct.error, TypeError):
                 raise ValueError("Invalid JPEG file")
         # handle JPEG2000s
         elif size >= 12 and head.startswith(b'\x00\x00\x00\x0cjP  \r\n\x87\n'):
@@ -175,15 +189,88 @@ def get(filepath):
                     break
             if width == -1 or height == -1:
                 raise ValueError("Invalid TIFF file: width and/or height IDS entries are missing.")
+        # handle little endian BigTiff
+        elif size >= 8 and head.startswith(b"\x49\x49\x2b\x00"):
+            bytesize_offset = struct.unpack('<L', head[4:8])[0]
+            if bytesize_offset != 8:
+                raise ValueError('Invalid BigTIFF file: Expected offset to be 8, found {} instead.'.format(offset))
+            offset = struct.unpack('<Q', head[8:16])[0]
+            fhandle.seek(offset)
+            ifdsize = struct.unpack("<Q", fhandle.read(8))[0]
+            for i in range(ifdsize):
+                tag, datatype, count, data = struct.unpack("<HHQQ", fhandle.read(20))
+                if tag == 256:
+                    width = data
+                elif tag == 257:
+                    height = data
+                if width != -1 and height != -1:
+                    break
+            if width == -1 or height == -1:
+                raise ValueError("Invalid BigTIFF file: width and/or height IDS entries are missing.")
+
         # handle SVGs
-        elif size >= 5 and head.startswith(b'<?xml'):
+        elif size >= 5 and (head.startswith(b'<?xml') or head.startswith(b'<svg')):
+            fhandle.seek(0)
+            data = fhandle.read(1024)
             try:
-                fhandle.seek(0)
-                root = ElementTree.parse(fhandle).getroot()
-                width = _convertToPx(root.attrib["width"])
-                height = _convertToPx(root.attrib["height"])
+                data = data.decode('utf-8')
+                width = re.search(r'[^-]width="(.*?)"', data).group(1)
+                height = re.search(r'[^-]height="(.*?)"', data).group(1)
             except Exception:
                 raise ValueError("Invalid SVG file")
+            width = _convertToPx(width)
+            height = _convertToPx(height)
+
+        # handle Netpbm
+        elif head[:1] == b"P" and head[1:2] in b"123456":
+            fhandle.seek(2)
+            sizes = []
+
+            while True:
+                next_chr = fhandle.read(1)
+
+                if next_chr.isspace():
+                    continue
+
+                if next_chr == b"":
+                    raise ValueError("Invalid Netpbm file")
+
+                if next_chr == b"#":
+                    fhandle.readline()
+                    continue
+
+                if not next_chr.isdigit():
+                    raise ValueError("Invalid character found on Netpbm file")
+
+                size = next_chr
+                next_chr = fhandle.read(1)
+
+                while next_chr.isdigit():
+                    size += next_chr
+                    next_chr = fhandle.read(1)
+
+                sizes.append(int(size))
+
+                if len(sizes) == 2:
+                    break
+
+                fhandle.seek(-1, os.SEEK_CUR)
+            width, height = sizes
+        elif head.startswith(b"RIFF") and head[8:12] == b"WEBP":
+            if head[12:16] == b"VP8 ":
+                width, height = struct.unpack("<HH", head[26:30])
+            elif head[12:16] == b"VP8X":
+                width = struct.unpack("<I", head[24:27] + b"\0")[0]
+                height = struct.unpack("<I", head[27:30] + b"\0")[0]
+            elif head[12:16] == b"VP8L":
+                b = head[21:25]
+                width = (((b[1] & 63) << 8) | b[0]) + 1
+                height = (((b[3] & 15) << 10) | (b[2] << 2) | ((b[1] & 192) >> 6)) + 1
+            else:
+                raise ValueError("Unsupported WebP file")
+
+    finally:
+        fhandle.close()
 
     return width, height
 
@@ -192,12 +279,16 @@ def getDPI(filepath):
     """
     Return (x DPI, y DPI) for a given img file content
     no requirements
-    :type filepath: Union[str, pathlib.Path]
+    :type filepath: Union[bytes, str, pathlib.Path]
     :rtype Tuple[int, int]
     """
     xDPI = -1
     yDPI = -1
-    with open(str(filepath), 'rb') as fhandle:
+
+    if not isinstance(filepath, bytes):
+        filepath = str(filepath)
+
+    with open(filepath, 'rb') as fhandle:
         head = fhandle.read(24)
         size = len(head)
         # handle GIFs
@@ -266,36 +357,27 @@ def getDPI(filepath):
             foundResBox = False
             try:
                 while headerSize > 0:
-                    print("headerSize", headerSize)
                     boxHeader = fhandle.read(8)
                     boxType = boxHeader[4:]
-                    print(boxType)
-                    if boxType == 'res ':  # find resolution super box
+                    if boxType == b'res ':  # find resolution super box
                         foundResBox = True
                         headerSize -= 8
-                        print("found res super box")
                         break
-                    print("@1", boxHeader)
                     boxSize, = struct.unpack('>L', boxHeader[:4])
-                    print("boxSize", boxSize)
                     fhandle.seek(boxSize - 8, 1)
                     headerSize -= boxSize
                 if foundResBox:
                     while headerSize > 0:
                         boxHeader = fhandle.read(8)
                         boxType = boxHeader[4:]
-                        print(boxType)
-                        if boxType == 'resd':  # Display resolution box
-                            print("@2")
+                        if boxType == b'resd':  # Display resolution box
                             yDensity, xDensity, yUnit, xUnit = struct.unpack(">HHBB", fhandle.read(10))
                             xDPI = _convertToDPI(xDensity, xUnit)
                             yDPI = _convertToDPI(yDensity, yUnit)
                             break
                         boxSize, = struct.unpack('>L', boxHeader[:4])
-                        print("boxSize", boxSize)
                         fhandle.seek(boxSize - 8, 1)
                         headerSize -= boxSize
             except struct.error as e:
-                print(e)
                 raise ValueError("Invalid JPEG2000 file")
     return xDPI, yDPI

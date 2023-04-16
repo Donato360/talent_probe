@@ -39,6 +39,19 @@ class AbstractChannel:
 
         self._setup_listeners()
 
+    __slots__ = (
+        "is_closing",
+        "connection",
+        "channel_id",
+        "method_queue",
+        "auto_decode",
+        "_pending",
+        "_callbacks",
+        # adding '__dict__' to get dynamic assignment
+        "__dict__",
+        "__weakref__",
+        )
+
     def __enter__(self):
         return self
 
@@ -68,7 +81,7 @@ class AbstractChannel:
 
     def close(self):
         """Close this Channel or Connection."""
-        raise NotImplementedError('Must be overriden in subclass')
+        raise NotImplementedError('Must be overridden in subclass')
 
     def wait(self, method, callback=None, timeout=None, returns_tuple=False):
         p = ensure_promise(callback)

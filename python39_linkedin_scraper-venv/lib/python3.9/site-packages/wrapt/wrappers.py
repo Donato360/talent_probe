@@ -86,6 +86,14 @@ class ObjectProxy(with_metaclass(_ObjectProxyMetaType)):
         except AttributeError:
             pass
 
+        # Python 3.10 onwards also does not allow itself to be overridden
+        # using a property and it must instead be set explicitly.
+
+        try:
+            object.__setattr__(self, '__annotations__', wrapped.__annotations__)
+        except AttributeError:
+            pass
+
     @property
     def __name__(self):
         return self.__wrapped__.__name__
@@ -101,14 +109,6 @@ class ObjectProxy(with_metaclass(_ObjectProxyMetaType)):
     @__class__.setter
     def __class__(self, value):
         self.__wrapped__.__class__ = value
-
-    @property
-    def __annotations__(self):
-        return self.__wrapped__.__annotations__
-
-    @__annotations__.setter
-    def __annotations__(self, value):
-        self.__wrapped__.__annotations__ = value
 
     def __dir__(self):
         return dir(self.__wrapped__)
@@ -178,8 +178,20 @@ class ObjectProxy(with_metaclass(_ObjectProxyMetaType)):
                 object.__setattr__(self, '__qualname__', value.__qualname__)
             except AttributeError:
                 pass
+            try:
+                object.__delattr__(self, '__annotations__')
+            except AttributeError:
+                pass
+            try:
+                object.__setattr__(self, '__annotations__', value.__annotations__)
+            except AttributeError:
+                pass
 
         elif name == '__qualname__':
+            setattr(self.__wrapped__, name, value)
+            object.__setattr__(self, name, value)
+
+        elif name == '__annotations__':
             setattr(self.__wrapped__, name, value)
             object.__setattr__(self, name, value)
 
@@ -433,12 +445,22 @@ class ObjectProxy(with_metaclass(_ObjectProxyMetaType)):
 
 class CallableObjectProxy(ObjectProxy):
 
-    def __call__(self, *args, **kwargs):
+    def __call__(*args, **kwargs):
+        def _unpack_self(self, *args):
+            return self, args
+
+        self, args = _unpack_self(*args)
+
         return self.__wrapped__(*args, **kwargs)
 
 class PartialCallableObjectProxy(ObjectProxy):
 
-    def __init__(self, *args, **kwargs):
+    def __init__(*args, **kwargs):
+        def _unpack_self(self, *args):
+            return self, args
+
+        self, args = _unpack_self(*args)
+
         if len(args) < 1:
             raise TypeError('partial type takes at least one argument')
 
@@ -452,7 +474,12 @@ class PartialCallableObjectProxy(ObjectProxy):
         self._self_args = args
         self._self_kwargs = kwargs
 
-    def __call__(self, *args, **kwargs):
+    def __call__(*args, **kwargs):
+        def _unpack_self(self, *args):
+            return self, args
+
+        self, args = _unpack_self(*args)
+    
         _args = self._self_args + args
 
         _kwargs = dict(self._self_kwargs)
@@ -532,7 +559,12 @@ class _FunctionWrapperBase(ObjectProxy):
 
         return self
 
-    def __call__(self, *args, **kwargs):
+    def __call__(*args, **kwargs):
+        def _unpack_self(self, *args):
+            return self, args
+
+        self, args = _unpack_self(*args)
+
         # If enabled has been specified, then evaluate it at this point
         # and if the wrapper is not to be executed, then simply return
         # the bound function rather than a bound wrapper for the bound
@@ -550,7 +582,7 @@ class _FunctionWrapperBase(ObjectProxy):
         # a function that was already bound to an instance. In that case
         # we want to extract the instance from the function and use it.
 
-        if self._self_binding == 'function':
+        if self._self_binding in ('function', 'classmethod'):
             if self._self_instance is None:
                 instance = getattr(self.__wrapped__, '__self__', None)
                 if instance is not None:
@@ -566,9 +598,41 @@ class _FunctionWrapperBase(ObjectProxy):
         return self._self_wrapper(self.__wrapped__, self._self_instance,
                 args, kwargs)
 
+    def __set_name__(self, owner, name):
+        # This is a special method use to supply information to
+        # descriptors about what the name of variable in a class
+        # definition is. Not wanting to add this to ObjectProxy as not
+        # sure of broader implications of doing that. Thus restrict to
+        # FunctionWrapper used by decorators.
+
+        if hasattr(self.__wrapped__, "__set_name__"):
+            self.__wrapped__.__set_name__(owner, name)
+
+    def __instancecheck__(self, instance):
+        # This is a special method used by isinstance() to make checks
+        # instance of the `__wrapped__`.
+        return isinstance(instance, self.__wrapped__)
+
+    def __subclasscheck__(self, subclass):
+        # This is a special method used by issubclass() to make checks
+        # about inheritance of classes. We need to upwrap any object
+        # proxy. Not wanting to add this to ObjectProxy as not sure of
+        # broader implications of doing that. Thus restrict to
+        # FunctionWrapper used by decorators.
+
+        if hasattr(subclass, "__wrapped__"):
+            return issubclass(subclass.__wrapped__, self.__wrapped__)
+        else:
+            return issubclass(subclass, self.__wrapped__)
+
 class BoundFunctionWrapper(_FunctionWrapperBase):
 
-    def __call__(self, *args, **kwargs):
+    def __call__(*args, **kwargs):
+        def _unpack_self(self, *args):
+            return self, args
+
+        self, args = _unpack_self(*args)
+
         # If enabled has been specified, then evaluate it at this point
         # and if the wrapper is not to be executed, then simply return
         # the bound function rather than a bound wrapper for the bound
@@ -928,7 +992,12 @@ class WeakFunctionProxy(ObjectProxy):
             super(WeakFunctionProxy, self).__init__(
                     weakref.proxy(wrapped, _callback))
 
-    def __call__(self, *args, **kwargs):
+    def __call__(*args, **kwargs):
+        def _unpack_self(self, *args):
+            return self, args
+
+        self, args = _unpack_self(*args)
+
         # We perform a boolean check here on the instance and wrapped
         # function as that will trigger the reference error prior to
         # calling if the reference had expired.
