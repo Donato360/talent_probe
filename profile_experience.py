@@ -1,6 +1,10 @@
 from bs4 import BeautifulSoup, NavigableString
 from helpers import Helper
 import copy
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
+from selenium.webdriver.common.by import By
+from selenium.common.exceptions import TimeoutException
 
 SCROLL_PAUSE_TIME = 1
 
@@ -174,8 +178,6 @@ class ProfileExperience(Helper):
             self.experienceItem['company']['location']['region']))
         print('country: {}'.format(
             self.experienceItem['company']['location']['country']))
-
-        print(experience)
 
         for li_tag in experience.find('ul', class_='pvs-list'):
 
@@ -577,6 +579,12 @@ class ProfileExperience(Helper):
 
         self.driver.get(self.profileLink)
 
+        try:
+            WebDriverWait(self.driver, 10).until(EC.presence_of_element_located((By.XPATH, '//*[@id="profile-content"]/div/div[2]/div/div/main')))
+        except TimeoutException:
+            print("Timed out, couldn't load the page {} in time".format(self.profileLink))
+            self.driver.quit()
+
         # Get scroll height after first time page load
         last_height = self.driver.execute_script(
             "return document.body.scrollHeight")
@@ -599,16 +607,13 @@ class ProfileExperience(Helper):
         time_key_words_set = {'yrs', 'yr', 'mos', 'mo'}
 
         try:
-            experiences = source.find_all('li', class_='pvs-list__paged-list-item artdeco-list__item pvs-list__item--line-separated')
+            experiences = source.select('li.pvs-list__paged-list-item.artdeco-list__item.pvs-list__item--line-separated')
         except:
             experiences = None
 
         if experiences:
             for index, experience in enumerate(experiences):
                 self.resetExperienceItem()
-
-                # print('index: {}'.format(index))
-                # print()
 
                 experience_1 = experience.find_all('span', attrs={'aria-hidden': 'true'})
                 experience_item_array = []

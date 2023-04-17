@@ -1,33 +1,23 @@
 # -*- coding: utf-8 -*-
 
 try:
-    import re
-    from parameters import username, password
     import time
     from time import sleep
     from selenium import webdriver
-    from  bs4 import BeautifulSoup
+    from selenium.webdriver.common.by import By
+    from selenium.webdriver.support.ui import WebDriverWait
+    from selenium.webdriver.support import expected_conditions as EC
     from webdriver_manager.chrome import ChromeDriverManager
     from selenium.webdriver.chrome.service import Service
-    from selenium.webdriver.chrome.options import Options
-    from selenium.webdriver.common.by import By
-    from selenium.webdriver.common.keys import Keys
-    from parsel import Selector
-    from datetime import datetime
-    import numpy as np
-    import pandas as pd
-    import json
-    import argparse
     import sys
     from selenium_stealth import stealth
     from helpers import average
-    from login import Login
     from profiles_urls import ProfileURLs
     from profile_general_info import ProfileGeneralInfo
     from profile_education import ProfileEducation
     from profile_experience import ProfileExperience
     from afile import load_cookie
-    
+
     print('all module are loaded ')
     print()
 except Exception as e:
@@ -39,17 +29,16 @@ def main(source):
 
     try:
         options = webdriver.ChromeOptions()
-        # # options.add_argument("start-maximized")
-        # # chrome_options = webdriver.ChromeOptions()
-        # # chrome_options.add_experimental_option("detach", True)
-        # options.add_argument("--headless")
-        options.add_experimental_option("detach", True)
-        # options.add_experimental_option("excludeSwitches", ["enable-automation"])
-        # options.add_experimental_option('useAutomationExtension', False)
-        # global driver
+        # options.add_argument("start-maximized")
+        options.add_argument("--headless")
+        # options.add_experimental_option("detach", True)
+        options.add_experimental_option("excludeSwitches", ["enable-automation"])
+        options.add_experimental_option('useAutomationExtension', False)
 
         driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=options)
-        driver.get('https://www.linkedin.com/')
+
+        driver.get('https://www.linkedin.com/login')
+
         load_cookie(driver, '/tmp/cookie')
 
         stealth(driver,
@@ -84,21 +73,6 @@ def main(source):
         print('Error ->>>: {} '.format(e))
         print()
         sys.exit()   
-
-    # try:
-    #     login_url = 'https://www.linkedin.com/login'
-    #     login_obj = Login(driver, login_url, username, password)
-    #     login_obj.doLogin()
-    #     print('Login to: {} was successfull'.format(login_url))
-    #     print()
-
-    #     print(f'driver.command_executor._url: {driver.command_executor._url}')
-    #     print(f'driver.session_id: {driver.session_id}')
-    # except Exception as e:
-    #     print('Could not login to {} '.format(login_url))
-    #     print('Error ->>>: {} '.format(e))
-    #     print()
-    #     sys.exit()
 
     current_profile_execution_time = 0
     profiles_execution_times = []

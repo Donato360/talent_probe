@@ -1,5 +1,9 @@
 from  bs4 import BeautifulSoup
 from helpers import Helper
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
+from selenium.webdriver.common.by import By
+from selenium.common.exceptions import TimeoutException
 
 SCROLL_PAUSE_TIME = 1
 
@@ -81,6 +85,12 @@ class ProfileEducation(Helper):
 
         self.driver.get(self.profileLink)
 
+        try:
+            WebDriverWait(self.driver, 10).until(EC.presence_of_element_located((By.XPATH, '//*[@id="profile-content"]/div/div[2]/div/div/main')))
+        except TimeoutException:
+            print("Timed out, couldn't load the page {} in time".format(self.profileLink))
+            self.driver.quit()
+
         # Get scroll height after first time page load
         last_height = self.driver.execute_script("return document.body.scrollHeight")
         while True:
@@ -98,7 +108,7 @@ class ProfileEducation(Helper):
         profile_dictionary = {}
 
         try:
-            educations = source.find_all('li', class_='pvs-list__paged-list-item artdeco-list__item pvs-list__item--line-separated')
+            educations = source.select('li.pvs-list__paged-list-item.artdeco-list__item.pvs-list__item--line-separated')
         except:
             educations = None
         
@@ -121,10 +131,6 @@ class ProfileEducation(Helper):
                     self.educationList.append(self.processEducation(education_item_array))
         else:
              self.educationList = None
-             
-        # print(self.educationList)
-        # print()
-        # print('*****************************************************************')
 
         profile_dictionary['education'] = self.educationList
 
