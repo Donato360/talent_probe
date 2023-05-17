@@ -64,6 +64,3 @@ fi
 if [ -n "${BASH:-}" -o -n "${ZSH_VERSION:-}" ] ; then
     hash -r 2> /dev/null
 fi
-
-alias pip-upgrade="pip freeze --user | cut -d'=' -f1 | xargs -n1 pip install -U"
-alias pip-upgrade-venv="pip freeze | cut -d'=' -f1 | xargs -n1 pip install -U"

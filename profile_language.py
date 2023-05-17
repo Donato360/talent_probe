@@ -8,11 +8,11 @@ from selenium.common.exceptions import TimeoutException
 
 SCROLL_PAUSE_TIME = 1
 
-class ProfileExperience(Helper):
+class ProfileLanguage(Helper):
     def __init__(self, driver, profileLink):
         self.driver = driver
         self.profileLink = profileLink
-        self.singleExperienceItem = {
+        self.languageItem = {
             "company": {
                 "name": None,
                 "location": {
@@ -28,81 +28,6 @@ class ProfileExperience(Helper):
             "start_date": None,
             "end_date": None,
             "summary": None
-        }
-        self.position = {
-            "title": {
-                "name": None
-            },
-            "is_primary": False,
-            "start_date": None,
-            "end_date": None,
-            "location": {
-                "city": None,
-                "region": None,
-                "country": None
-            },
-            "summary": None,
-        }
-        self.multiExperienceItem = {
-            "company": {
-                "name": None,
-                "location": {
-                    "city": None,
-                    "region": None,
-                    "country": None
-                }
-            },
-            "positions": []
-        }
-        self.experienceList = []
-        self.experienceItems = []
-
-    def resetExperienceItem(self):
-        self.singleExperienceItem = {
-            "company": {
-                "name": None,
-                "location": {
-                    'city': None,
-                    'region': None,
-                    'country': None
-                }
-            },
-            "title": {
-                "name": None
-            },
-            "is_primary": False,
-            "start_date": None,
-            "end_date": None,
-            "summary": None
-        }
-
-    def resetPosition(self):
-        self.position = {
-            "title": {
-                "name": None
-            },
-            "is_primary": False,
-            "start_date": None,
-            "end_date": None,
-            "location": {
-                "city": None,
-                "region": None,
-                "country": None
-            },
-            "summary": None,
-        }
-
-    def resetMultiExperienceItem(self):
-        self.multiExperienceItem = {
-            "company": {
-                "name": None,
-                "location": {
-                    "city": None,
-                    "region": None,
-                    "country": None
-                }
-            },
-            "positions": []
         }
 
     def processProfileLink(self):
