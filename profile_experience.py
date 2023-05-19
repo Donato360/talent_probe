@@ -199,8 +199,8 @@ class ProfileExperience(Helper):
         return self.singleExperienceItem
 
     def processJobType2(self, experience):
-        print('job type 2:')
-        print()
+        # print('job type 2:')
+        # print()
         experience_decomposed = copy.copy(experience)
 
         for ul in experience_decomposed('ul'):
@@ -223,13 +223,13 @@ class ProfileExperience(Helper):
                         self.multiExperienceItem['company']['location']['country'] = ','.join(
                             locations_general['countries'])
 
-        print('company_name: {}'.format(company_name))
-        print('city: {}'.format(
-            self.multiExperienceItem['company']['location']['city']))
-        print('region: {}'.format(
-            self.multiExperienceItem['company']['location']['region']))
-        print('country: {}'.format(
-            self.multiExperienceItem['company']['location']['country']))
+        # print('company_name: {}'.format(company_name))
+        # print('city: {}'.format(
+        #     self.multiExperienceItem['company']['location']['city']))
+        # print('region: {}'.format(
+        #     self.multiExperienceItem['company']['location']['region']))
+        # print('country: {}'.format(
+        #     self.multiExperienceItem['company']['location']['country']))
         
         for li_tag in experience.find('ul', class_='pvs-list'):
 
@@ -251,7 +251,7 @@ class ProfileExperience(Helper):
                 for index, text in enumerate(experience_2):
                     experience_item_array.append(text.getText())
 
-                print(experience_item_array)
+                # print(experience_item_array)
 
                 self.position['title']['name'] = experience_item_array[0]
 
@@ -311,7 +311,7 @@ class ProfileExperience(Helper):
 
                 positions.append(self.position)
 
-                print('<><><><><><><><><><><><><><><><><><>><><><><><><><><><><><><><><><><><><><><><><><><><><><><>')
+                # print('<><><><><><><><><><><><><><><><><><>><><><><><><><><><><><><><><><><><><><><><><><><><><><><>')
                 
 
             # for span_tag in li_tag.find_all('li', class_='pvs-list__paged-list-item'):

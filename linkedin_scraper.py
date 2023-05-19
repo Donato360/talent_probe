@@ -16,6 +16,8 @@ try:
     from profile_general_info import ProfileGeneralInfo
     from profile_education import ProfileEducation
     from profile_experience import ProfileExperience
+    from profile_language import ProfileLanguage
+    from profile_certification import ProfileCertification
     from afile import load_cookie
 
     print('all module are loaded ')
@@ -86,12 +88,14 @@ def main(source):
             profile = 'https://www.linkedin.com/in/' + profile
 
             profileGeneralInfo_obj = ProfileGeneralInfo(driver, profile)
+            profileCertification_obj = ProfileCertification(driver, profile)
             profileEducation_obj = ProfileEducation(driver, profile)
             profileExperience_obj = ProfileExperience(driver, profile)
+            profileLanguage_obj = ProfileLanguage(driver, profile)
     
             start = time.time()
 
-            profile_dict = profileGeneralInfo_obj.getGeneralInfo() | profileEducation_obj.getEducation() | profileExperience_obj.getExperience()
+            profile_dict = profileGeneralInfo_obj.getGeneralInfo() | profileCertification_obj.getCertification() | profileEducation_obj.getEducation() | profileExperience_obj.getExperience() | profileLanguage_obj.getLanguage()
             # sleep(0.1)
 
             profiles.append(profile_dict)
