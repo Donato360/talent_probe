@@ -20,6 +20,7 @@ try:
     from profile_language import ProfileLanguage
     from profile_certification import ProfileCertification
     from profile_skill import ProfileSkill
+    from profile_project import ProfileProject
 
     print('all module are loaded ')
     print()
@@ -89,15 +90,16 @@ def main(source):
             profile = 'https://www.linkedin.com/in/' + profile
 
             profileGeneralInfo_obj = ProfileGeneralInfo(driver, profile)
-            profileCertification_obj = ProfileCertification(driver, profile)
             profileEducation_obj = ProfileEducation(driver, profile)
             profileExperience_obj = ProfileExperience(driver, profile)
             profileLanguage_obj = ProfileLanguage(driver, profile)
+            profileCertification_obj = ProfileCertification(driver, profile)
+            profileProject_obj = ProfileProject(driver, profile)
             profileSkill_obj = ProfileSkill(driver, profile)
     
             start = time.time()
 
-            profile_dict = profileGeneralInfo_obj.getGeneralInfo() | profileEducation_obj.getEducation() | profileExperience_obj.getExperience() | profileLanguage_obj.getLanguage() | profileCertification_obj.getCertification() | profileSkill_obj.getSkill()
+            profile_dict = profileGeneralInfo_obj.getGeneralInfo() | profileEducation_obj.getEducation() | profileExperience_obj.getExperience() | profileLanguage_obj.getLanguage() | profileCertification_obj.getCertification() | profileProject_obj.getProject() | profileSkill_obj.getSkill()
             # sleep(0.1)
 
             profiles.append(profile_dict)
