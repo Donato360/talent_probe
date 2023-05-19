@@ -91,8 +91,6 @@ class ProfileCertification(Helper):
             for index, certification in enumerate(certifications):
                 certification_text = certification.find_all('span', attrs={'aria-hidden':'true'})
                 certification_link = certification.find('a', class_= ['optional-action-target-wrapper artdeco-button artdeco-button--secondary artdeco-button--standard artdeco-button--2 artdeco-button--muted inline-flex justify-center align-self-flex-start'])
-                print(certification_link)
-                print(',.,.,.,.,.,.,.,.,.,.,.,.,.,.,.,.,.,.,.,')
                 if certification_link:
                     certification_link = certification_link.get('href')
                 else:

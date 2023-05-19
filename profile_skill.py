@@ -8,29 +8,29 @@ import re
 
 SCROLL_PAUSE_TIME = 1
 
-class ProfileLanguage(Helper):
+class ProfileSkill(Helper):
     def __init__(self, driver, profileLink):
         self.driver = driver
         self.profileLink = profileLink
-        self.languageItem = {
+        self.skillItem = {
             "name": None,
-            "proficiency": None
+            "endorsements": None
         }
-        self.languageList = []
+        self.skillList = []
 
-    def resetLanguageItem(self):
-        self.languageItem = {
+    def resetSkillItem(self):
+        self.skillItem = {
             "name": None,
-            "proficiency": None
+            "endorsements": None
         }
 
     def processProfileLink(self):
         if self.profileLink[-1] == '/':
-            self.profileLink = self.profileLink + 'details/languages/'
+            self.profileLink = self.profileLink + 'details/skills/'
         else:
-            self.profileLink = self.profileLink + '/details/languages/'
+            self.profileLink = self.profileLink + '/details/skills/'
 
-    def getLanguage(self):
+    def getSkill(self):
         self.processProfileLink()
 
         self.driver.get(self.profileLink)
@@ -46,8 +46,7 @@ class ProfileLanguage(Helper):
         while True:
             # Scroll down to bottom
             self.driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
-            # Wait to load page / use a better technique like `waitforpageload` etc., if possible
-            # Calculate new scroll height and compare with last scroll height
+            WebDriverWait(self.driver, 10).until(EC.presence_of_element_located((By.XPATH, '//*[@id="globalfooter-about"]')))
             new_height = self.driver.execute_script("return document.body.scrollHeight")
             if new_height == last_height:
                 break
@@ -56,29 +55,36 @@ class ProfileLanguage(Helper):
         source = BeautifulSoup(self.driver.page_source, 'lxml')
 
         profile_dictionary = {}
-        text = 'Languages'
+        text = 'Skills'
 
-        languages_section = source.find(lambda tag: tag.name == "h2" and text in tag.text).find_parent('section')
-        languages_li = languages_section.find_all('li', class_= ['pvs-list__paged-list-item', 'artdeco-list__item pvs-list__item--line-separated', 'pvs-list__item--one-column'])
-        self.languageList = []
-
-        if languages_li:
-            for index in range(len(languages_li)):
-                current_language = []
-                for el in languages_li[index].find_all('span', {"class": "visually-hidden"}):
-                    current_language.append(el.get_text())
-
-                if current_language:
-                    self.resetLanguageItem()
-
-                    self.languageItem['name'] = current_language[0]
-                    self.languageItem['proficiency'] = current_language[1]
-
-                    self.languageList.append(self.languageItem)
+        skills_section = source.find(lambda tag: tag.name == "h2" and text in tag.text).find_parent('section')
+        skills_li = skills_section.find('ul', class_= ['pvs-list']).findChildren('li', recursive=False)
         
-        if self.languageList:
-            profile_dictionary['languages'] = self.languageList
+        self.skillList = []
+
+        if skills_li:
+            for li in skills_li:
+                current_skill = []
+
+                for el in li.find_all('span', {"class": "visually-hidden"}):
+                    current_skill.append(el.get_text())
+
+                if current_skill:
+                    self.resetSkillItem()
+
+                    self.skillItem['name'] = current_skill[0]
+
+                    if len(current_skill) > 1:
+                        for item in current_skill[1:]:
+                            if 'endorsements' in item:
+                                self.skillItem['endorsements'] = current_skill[1]
+                                break
+
+                    self.skillList.append(self.skillItem)
+        
+        if self.skillList:
+            profile_dictionary['skills'] = self.skillList
         else:
-            profile_dictionary['languages'] = None
+            profile_dictionary['skills'] = None
 
         return profile_dictionary

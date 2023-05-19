@@ -3,6 +3,7 @@
 try:
     import time
     from time import sleep
+    from afile import load_cookie
     from selenium import webdriver
     from selenium.webdriver.common.by import By
     from selenium.webdriver.support.ui import WebDriverWait
@@ -18,7 +19,7 @@ try:
     from profile_experience import ProfileExperience
     from profile_language import ProfileLanguage
     from profile_certification import ProfileCertification
-    from afile import load_cookie
+    from profile_skill import ProfileSkill
 
     print('all module are loaded ')
     print()
@@ -92,10 +93,11 @@ def main(source):
             profileEducation_obj = ProfileEducation(driver, profile)
             profileExperience_obj = ProfileExperience(driver, profile)
             profileLanguage_obj = ProfileLanguage(driver, profile)
+            profileSkill_obj = ProfileSkill(driver, profile)
     
             start = time.time()
 
-            profile_dict = profileGeneralInfo_obj.getGeneralInfo() | profileCertification_obj.getCertification() | profileEducation_obj.getEducation() | profileExperience_obj.getExperience() | profileLanguage_obj.getLanguage()
+            profile_dict = profileGeneralInfo_obj.getGeneralInfo() | profileEducation_obj.getEducation() | profileExperience_obj.getExperience() | profileLanguage_obj.getLanguage() | profileCertification_obj.getCertification() | profileSkill_obj.getSkill()
             # sleep(0.1)
 
             profiles.append(profile_dict)
