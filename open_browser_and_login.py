@@ -1,23 +1,21 @@
 # -*- coding: utf-8 -*-
 
 try:
-    from parameters import username, password
+    import sys
     from selenium import webdriver
+    from selenium.common.exceptions import WebDriverException
     from selenium.webdriver.chrome.service import Service
     from webdriver_manager.chrome import ChromeDriverManager
-    import sys
     from selenium_stealth import stealth
     from login import Login
     from afile import save_cookie
-    
-    print('all module are loaded ')
-    print()
+    from contextlib import closing
+    from parameters import username, password
+    from helpers import logger
 except Exception as e:
-    print('Error ->>>: {} '.format(e))
-    print()
+    logger.error(f'Problems importing libraries. Error: {str(e)}')
 
 def main():
-
     try:
         options = webdriver.ChromeOptions()
         # options.add_argument("start-maximized")
@@ -26,45 +24,25 @@ def main():
         options.add_experimental_option("excludeSwitches", ["enable-automation"])
         options.add_experimental_option('useAutomationExtension', False)
 
-        driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=options)
+        with closing(webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=options)) as driver:
+            stealth(driver,
+                    languages=["en-US", "en"],
+                    vendor="Google Inc.",
+                    platform="Win32",
+                    webgl_vendor="Intel Inc.",
+                    renderer="Intel Iris OpenGL Engine",
+                    fix_hairline=True,
+                )
 
-        stealth(driver,
-            languages=["en-US", "en"],
-            vendor="Google Inc.",
-            platform="Win32",
-            webgl_vendor="Intel Inc.",
-            renderer="Intel Iris OpenGL Engine",
-            fix_hairline=True,
-        )
+            login_url = 'https://www.linkedin.com/login'
+            login_obj = Login(driver, login_url, username, password)
+            login_obj.doLogin()
 
-        # browser.set_window_size(1800, 900)
-        print('Driver: {} has been successfully set'.format(driver.name))
-        print()
-    except Exception as e:
-        print('Webdriver not found')
-        print('Error ->>>: {} '.format(e))
-        print()
-        sys.exit()
-
-    try:
-        login_url = 'https://www.linkedin.com/login'
-        login_obj = Login(driver, login_url, username, password)
-        login_obj.doLogin()
-        print('Login to: {} was successfull'.format(login_url))
-        print()
-
-        print(f'driver.command_executor._url: {driver.command_executor._url}')
-        print(f'driver.session_id: {driver.session_id}')
-        print('credentials save as cookie in /tmp/cookie')
-        print()
-
-        save_cookie(driver, '/tmp/cookie')
-
-    except Exception as e:
-        print('Could not login to {} '.format(login_url))
-        print('Error ->>>: {} '.format(e))
-        print()
-        sys.exit()
+            save_cookie(driver, '/tmp/cookie')
+    except WebDriverException as e:
+        logger.error('%s - %s', str(e), sys.exc_info()[2].tb_frame.f_globals['__name__'])
+        return
 
 if __name__ == "__main__":
-    main()
+        # Call the main function
+        main()

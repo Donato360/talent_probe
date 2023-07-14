@@ -1,7 +1,6 @@
-from time import sleep
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
-from selenium.webdriver.support import expected_conditions as EC
+from selenium.webdriver.support.expected_conditions import element_to_be_clickable
 
 class Login:
     def __init__(self, driver, url, username, password):
@@ -12,12 +11,14 @@ class Login:
 
     def doLogin(self):
         self.driver.get(self.url)
-        #wait for username and password fields to be available
+        
         wait = WebDriverWait(self.driver, 10)
-        loginbutton = wait.until(EC.element_to_be_clickable((By.XPATH,'/html/body/div/main/div[3]/div[1]/form/div[3]/button')))
+        login_button = wait.until(element_to_be_clickable((By.XPATH, '//button[@type="submit"]')))
 
-        eml = self.driver.find_element(By.XPATH, '//*[@id="username"]')
-        eml.send_keys(self.username)
-        passwd = self.driver.find_element(By.XPATH, '//*[@id="password"]')
-        passwd.send_keys(self.password)
-        loginbutton.click()
+        email_field = self.driver.find_element(By.ID, 'username')
+        email_field.send_keys(self.username)
+        
+        password_field = self.driver.find_element(By.ID, 'password')
+        password_field.send_keys(self.password)
+        
+        login_button.click()
