@@ -2,6 +2,7 @@
 
 try:
     import sys
+    import os
     from selenium import webdriver
     from selenium.common.exceptions import WebDriverException
     from selenium.webdriver.chrome.service import Service
@@ -17,14 +18,17 @@ except Exception as e:
 
 def main():
     try:
+        # Get the current working directory
+        cwd = os.getcwd()  
+        # Set the ChromeDriver executable path
+        driver_path = os.path.join(cwd, "chromedriver-linux64/chromedriver") 
+        service = Service(executable_path=driver_path)
         options = webdriver.ChromeOptions()
-        # options.add_argument("start-maximized")
         options.add_argument("--headless")
-        # options.add_experimental_option("detach", True)
         options.add_experimental_option("excludeSwitches", ["enable-automation"])
         options.add_experimental_option('useAutomationExtension', False)
 
-        with closing(webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=options)) as driver:
+        with closing(webdriver.Chrome(service=service, options=options)) as driver:
             stealth(driver,
                     languages=["en-US", "en"],
                     vendor="Google Inc.",

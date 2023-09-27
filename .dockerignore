@@ -1,0 +1,14 @@
+Dockerfile
+docker-compose.yml
+*.json
+error_logs/
+error_logs/**
+profiles/
+python3.11.4_linkedin_scraper-venv/
+python3.11.4_linkedin_scraper-venv/**
+sandbox/
+sandbox/**
+.gitignore
+chromedriver-linux64.zip
+geckodriver.log
+__pycache__/
